@@ -1,5 +1,5 @@
 model:
-  path: '../yolo_models/yolo11n.pt'
+  path: "../yolo_models/yolo11n.pt"
 
 detection:
   conf: 0.45
@@ -10,10 +10,11 @@ detection:
   classes: [0]
 
 video:
-  source: '../test_media/input.mp4'
+  #source: '../test_media/input.mp4'
+  source: 0
 
 display:
-  window_name: 'YOLO Detection'
+  window_name: "YOLO Detection"
   window_width: 1280
   window_height: 720
 
