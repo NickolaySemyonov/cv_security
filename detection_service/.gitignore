@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+
+# ENV
+venv/
+
+# YOLO
+yolo_models/
+
+# test-purpose folders 
+detection_output/
+test_media/

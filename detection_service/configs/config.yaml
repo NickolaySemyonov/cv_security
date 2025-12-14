@@ -1,0 +1,21 @@
+model:
+  path: '../yolo_models/yolo11n.pt'
+
+detection:
+  conf: 0.45
+  iou: 0.45
+  imgsz: 1280
+  agnostic_nms: False
+  max_det: 300
+  classes: [0]
+
+video:
+  source: '../test_media/input.mp4'
+
+display:
+  window_name: 'YOLO Detection'
+  window_width: 1280
+  window_height: 720
+
+output:
+  directory: "../detection_output"
