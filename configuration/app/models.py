@@ -1,0 +1,150 @@
+import datetime
+import enum
+
+from sqlalchemy import Boolean, CHAR, CheckConstraint, DateTime, Enum, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, SmallInteger, String, Text, UniqueConstraint, text
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+from .database import Base
+
+class WeekDays(str, enum.Enum):
+    MONDAY = 'Monday'
+    TUESDAY = 'Tuesday'
+    WEDNESDAY = 'Wednesday'
+    THURSDAY = 'Thursday'
+    FRIDAY = 'Friday'
+    SATURDAY = 'Saturday'
+    SUNDAY = 'Sunday'
+
+
+class Floor(Base):
+    __tablename__ = 'floor'
+    __table_args__ = (
+        CheckConstraint('number >= 0', name='floor_number_check'),
+        PrimaryKeyConstraint('id', name='floor_pkey'),
+        UniqueConstraint('place', 'number', name='uq_place_number')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    number: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    place: Mapped[str] = mapped_column(String(100), nullable=False)
+    map: Mapped[str] = mapped_column(Text, nullable=False)
+
+    area: Mapped[list['Area']] = relationship('Area', back_populates='floor')
+
+
+class User(Base):
+    __tablename__ = 'user'
+    __table_args__ = (
+        PrimaryKeyConstraint('id', name='user_pkey'),
+        UniqueConstraint('login', name='user_login_key')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    login: Mapped[str] = mapped_column(String(25), nullable=False)
+
+    action: Mapped[list['Action']] = relationship('Action', back_populates='user')
+
+
+class Action(Base):
+    __tablename__ = 'action'
+    __table_args__ = (
+        ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE', name='user_fk'),
+        PrimaryKeyConstraint('id', name='action_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    time: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    text: Mapped[str] = mapped_column('text', Text, nullable=False)
+    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    user: Mapped['User'] = relationship('User', back_populates='action')
+
+
+class Area(Base):
+    __tablename__ = 'area'
+    __table_args__ = (
+        CheckConstraint("type::text = ANY (ARRAY['green'::character varying, 'red'::character varying]::text[])", name='area_type_check'),
+        ForeignKeyConstraint(['floor_id'], ['floor.id'], ondelete='CASCADE', name='fk_floor'),
+        PrimaryKeyConstraint('id', name='area_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
+    red_zone: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
+    coordinates: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    type: Mapped[str] = mapped_column(String(6), nullable=False, server_default=text("'green'::character varying"))
+    floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    floor: Mapped['Floor'] = relationship('Floor', back_populates='area')
+    camera: Mapped[list['Camera']] = relationship('Camera', back_populates='area')
+    schedule: Mapped[list['Schedule']] = relationship('Schedule', back_populates='area')
+
+
+class Camera(Base):
+    __tablename__ = 'camera'
+    __table_args__ = (
+        ForeignKeyConstraint(['area_id'], ['area.id'], ondelete='CASCADE', name='fk_area'),
+        PrimaryKeyConstraint('id', name='camera_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
+    coordinates: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    points_of_homography: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    distance_between_points: Mapped[dict] = mapped_column(JSONB, nullable=False) ## Надо будет добавить server_onupdate=FetchedValue(), когда триггер сделаю
+    area_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    area: Mapped['Area'] = relationship('Area', back_populates='camera')
+    detection: Mapped[list['Detection']] = relationship('Detection', back_populates='camera')
+
+
+class Schedule(Base):
+    __tablename__ = 'schedule'
+    __table_args__ = (
+        CheckConstraint('start_time < end_time', name='check_time_order'),
+        ForeignKeyConstraint(['area_id'], ['area.id'], ondelete='CASCADE', name='fk_area'),
+        PrimaryKeyConstraint('id', name='schedule_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    start_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    end_time: Mapped[datetime.datetime] = mapped_column(DateTime, nullable=False)
+    day: Mapped[WeekDays] = mapped_column(Enum(WeekDays, values_callable=lambda cls: [member.value for member in cls], name='week_days'), nullable=False)
+    area_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    area: Mapped['Area'] = relationship('Area', back_populates='schedule')
+
+
+class Detection(Base):
+    __tablename__ = 'detection'
+    __table_args__ = (
+        ForeignKeyConstraint(['camera_id'], ['camera.id'], ondelete='CASCADE', name='fk_camera'),
+        PrimaryKeyConstraint('id', name='detection_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    time: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
+    coordinates: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    camera_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    camera: Mapped['Camera'] = relationship('Camera', back_populates='detection')
+    notification: Mapped['Notification'] = relationship('Notification', back_populates='detection')
+
+
+class Notification(Base):
+    __tablename__ = 'notification'
+    __table_args__ = (
+        CheckConstraint("type = ANY (ARRAY['r'::bpchar, 'g'::bpchar, 'y'::bpchar])", name='notification_type_check'),
+        ForeignKeyConstraint(['detection_id'], ['detection.id'], ondelete='CASCADE', name='fk_detection'),
+        PrimaryKeyConstraint('id', name='notification_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    type: Mapped[str] = mapped_column(CHAR(1), nullable=False)
+    title: Mapped[str] = mapped_column(String(50), nullable=False)
+    text: Mapped[str] = mapped_column('text', Text, nullable=False)
+    detection_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    detection: Mapped['Detection'] = relationship('Detection', back_populates='notification')
