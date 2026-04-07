@@ -1,25 +1,15 @@
-import os
-from pathlib import Path
-from dotenv import load_dotenv
+# database.py
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, DeclarativeBase
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+import os
 
-env_path = Path(__file__).resolve().parent.parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://postgres:1234@localhost:5432/kontur")
 
-DB_USER = os.getenv("DB_USER")
-DB_PASSWORD = os.getenv("DB_PASSWORD")
-DB_HOST = os.getenv("DB_HOST")
-DB_PORT = os.getenv("DB_PORT") or "5432"
-DB_NAME = os.getenv("DB_NAME")
-
-SQLALCHEMY_DATABASE_URL = f"postgresql+psycopg2://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-engine = create_engine(SQLALCHEMY_DATABASE_URL)
+engine = create_engine(DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
-class Base(DeclarativeBase):
-    pass
+Base = declarative_base()
 
 def get_db():
     db = SessionLocal()
