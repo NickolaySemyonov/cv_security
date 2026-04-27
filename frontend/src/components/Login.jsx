@@ -2,7 +2,6 @@
 import { useState } from 'react';
 import api from '../config/axios';
 
-
 const Login = ({ onLoginSuccess }) => {
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
@@ -18,10 +17,11 @@ const Login = ({ onLoginSuccess }) => {
       const response = await api.post('/auth/login', {
         login,
         password
-        });
+      });
 
       if (response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token);
+        localStorage.setItem('refresh_token', response.data.refresh_token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
         if (onLoginSuccess) {
@@ -36,99 +36,52 @@ const Login = ({ onLoginSuccess }) => {
   };
 
   return (
-    <div style={styles.container}>
-      <form onSubmit={handleSubmit} style={styles.form}>
-        <h2 style={styles.title}>Вход в систему</h2>
+    <div className="flex justify-center items-center min-h-screen bg-gray-100">
+      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h2 className="text-center text-2xl font-bold text-gray-800 mb-6">
+          Вход в систему
+        </h2>
         
-        {error && <div style={styles.error}>{error}</div>}
+        {error && (
+          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center">
+            {error}
+          </div>
+        )}
         
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Логин:</label>
+        <div className="mb-4">
+          <label className="block text-gray-700 mb-2">Логин:</label>
           <input
             type="text"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
-            style={styles.input}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             required
             autoComplete="username"
           />
         </div>
 
-        <div style={styles.inputGroup}>
-          <label style={styles.label}>Пароль:</label>
+        <div className="mb-6">
+          <label className="block text-gray-700 mb-2">Пароль:</label>
           <input
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            style={styles.input}
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
             required
             autoComplete="current-password"
           />
         </div>
 
-        <button type="submit" disabled={loading} style={styles.button}>
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
           {loading ? 'Вход...' : 'Войти'}
         </button>
       </form>
     </div>
   );
-};
-
-const styles = {
-  container: {
-    display: 'flex',
-    justifyContent: 'center',
-    alignItems: 'center',
-    minHeight: '100vh',
-    backgroundColor: '#f0f2f5'
-  },
-  form: {
-    backgroundColor: 'white',
-    padding: '2rem',
-    borderRadius: '8px',
-    boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-    width: '100%',
-    maxWidth: '400px'
-  },
-  title: {
-    textAlign: 'center',
-    marginBottom: '1.5rem',
-    color: '#333'
-  },
-  inputGroup: {
-    marginBottom: '1rem'
-  },
-  label: {
-    display: 'block',
-    marginBottom: '0.5rem',
-    color: '#555'
-  },
-  input: {
-    width: '100%',
-    padding: '0.5rem',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '1rem'
-  },
-  button: {
-    width: '100%',
-    padding: '0.75rem',
-    backgroundColor: '#007bff',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    fontSize: '1rem',
-    cursor: 'pointer',
-    marginTop: '1rem'
-  },
-  error: {
-    backgroundColor: '#f8d7da',
-    color: '#721c24',
-    padding: '0.75rem',
-    borderRadius: '4px',
-    marginBottom: '1rem',
-    textAlign: 'center'
-  }
 };
 
 export default Login;
