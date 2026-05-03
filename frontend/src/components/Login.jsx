@@ -1,8 +1,10 @@
 // frontend/src/components/Login.jsx
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; 
 import api from '../config/axios';
 
 const Login = ({ onLoginSuccess }) => {
+  const navigate = useNavigate();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -27,6 +29,8 @@ const Login = ({ onLoginSuccess }) => {
         if (onLoginSuccess) {
           onLoginSuccess(response.data.user);
         }
+
+        navigate('/objects');
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Ошибка входа');

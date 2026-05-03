@@ -3,15 +3,7 @@ import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import PrivateRoute from './components/PrivateRoute';
-
-const Dashboard = ({ user, onLogout }) => {
-  return (
-    <div style={{ padding: '2rem' }}>
-      <h1>Добро пожаловать, {user?.login}!</h1>
-      <button onClick={onLogout}>Выйти</button>
-    </div>
-  );
-};
+import ObjectsList from './components/ObjectsList';
 
 function App() {
   const [user, setUser] = useState(null);
@@ -29,6 +21,7 @@ function App() {
 
   const handleLogout = () => {
     localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');
     setUser(null);
   };
@@ -39,16 +32,20 @@ function App() {
         <Route 
           path="/login" 
           element={
-            user ? <Navigate to="/" /> : <Login onLoginSuccess={handleLogin} />
+            user ? <Navigate to="/objects" /> : <Login onLoginSuccess={handleLogin} />
+          } 
+        />
+        <Route 
+          path="/objects" 
+          element={
+            <PrivateRoute>
+              <ObjectsList user={user} onLogout={handleLogout} />
+            </PrivateRoute>
           } 
         />
         <Route 
           path="/" 
-          element={
-            <PrivateRoute>
-              <Dashboard user={user} onLogout={handleLogout} />
-            </PrivateRoute>
-          } 
+          element={<Navigate to="/objects" />} 
         />
       </Routes>
     </BrowserRouter>
