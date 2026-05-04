@@ -1,12 +1,17 @@
-// frontend/src/App.jsx
+// src/App.tsx
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import PrivateRoute from './components/PrivateRoute';
 import ObjectsList from './components/ObjectsList';
 
+interface User {
+  id: number;
+  login: string;
+}
+
 function App() {
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
@@ -15,7 +20,7 @@ function App() {
     }
   }, []);
 
-  const handleLogin = (userData) => {
+  const handleLogin = (userData: User) => {
     setUser(userData);
   };
 
@@ -43,10 +48,7 @@ function App() {
             </PrivateRoute>
           } 
         />
-        <Route 
-          path="/" 
-          element={<Navigate to="/objects" />} 
-        />
+        <Route path="/" element={<Navigate to="/objects" />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,14 +1,18 @@
-// frontend/src/config/axios.js
-import axios from 'axios';
+// src/config/axios.ts
+import axios, { AxiosInstance, InternalAxiosRequestConfig, AxiosResponse } from 'axios';
 
-const api = axios.create({
+const api: AxiosInstance = axios.create({
   baseURL: 'http://localhost:8000',
+  headers: {
+    'Content-Type': 'application/json',
+  },
 });
 
+// Интерсептор для добавления токена
 api.interceptors.request.use(
-  (config) => {
+  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = localStorage.getItem('access_token');
-    if (token) {
+    if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -16,8 +20,9 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
+// Интерсептор для обновления токена
 api.interceptors.response.use(
-  (response) => response,
+  (response: AxiosResponse) => response,
   async (error) => {
     const originalRequest = error.config;
     

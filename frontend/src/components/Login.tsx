@@ -1,16 +1,25 @@
-// frontend/src/components/Login.jsx
+// src/components/Login.tsx
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom'; 
+import { useNavigate } from 'react-router-dom';
 import api from '../config/axios';
 
-const Login = ({ onLoginSuccess }) => {
+interface User {
+  id: number;
+  login: string;
+}
+
+interface LoginProps {
+  onLoginSuccess: (user: User) => void;
+}
+
+const Login = ({ onLoginSuccess }: LoginProps) => {
   const navigate = useNavigate();
   const [login, setLogin] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -26,13 +35,10 @@ const Login = ({ onLoginSuccess }) => {
         localStorage.setItem('refresh_token', response.data.refresh_token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
-        if (onLoginSuccess) {
-          onLoginSuccess(response.data.user);
-        }
-
+        onLoginSuccess(response.data.user);
         navigate('/objects');
       }
-    } catch (err) {
+    } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка входа');
     } finally {
       setLoading(false);
@@ -58,9 +64,8 @@ const Login = ({ onLoginSuccess }) => {
             type="text"
             value={login}
             onChange={(e) => setLogin(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             required
-            autoComplete="username"
           />
         </div>
 
@@ -70,16 +75,15 @@ const Login = ({ onLoginSuccess }) => {
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
             required
-            autoComplete="current-password"
           />
         </div>
 
         <button
           type="submit"
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 transition-colors duration-200 disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400"
         >
           {loading ? 'Вход...' : 'Войти'}
         </button>
