@@ -1,7 +1,7 @@
 import datetime
 import enum
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Enum, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, SmallInteger, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Enum, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, SmallInteger, String, Text, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -31,9 +31,14 @@ class Floor(Base):
     number: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     place: Mapped[str] = mapped_column(String(100), nullable=False)
     map: Mapped[str] = mapped_column(Text, nullable=False)
+    
+    calibration_points: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # [[x1,y1], [x2,y2]]
+    calibration_distance: Mapped[float | None] = mapped_column(Float, nullable=True)  # в метрах
+    real_width_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    real_height_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_calibrated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     area: Mapped[list['Area']] = relationship('Area', back_populates='floor')
-
 
 class User(Base):
     __tablename__ = 'user'

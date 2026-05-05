@@ -1,9 +1,10 @@
-// src/App.tsx
+// frontend/src/App.tsx
 import { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import PrivateRoute from './components/PrivateRoute';
 import ObjectsList from './components/ObjectsList';
+import FloorPage from './components/FloorPage'; 
 
 interface User {
   id: number;
@@ -45,6 +46,14 @@ function App() {
           element={
             <PrivateRoute>
               <ObjectsList user={user} onLogout={handleLogout} />
+            </PrivateRoute>
+          } 
+        />
+        <Route 
+          path="/objects/:place/floors" 
+          element={
+            <PrivateRoute>
+              <FloorPage user={user} onLogout={handleLogout} />
             </PrivateRoute>
           } 
         />

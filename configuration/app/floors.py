@@ -36,3 +36,17 @@ async def create_floor(
     db.commit()
     db.refresh(floor)
     return floor
+
+@router.delete("/{floor_id}")
+async def delete_floor(
+    floor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(404, "Этаж не найден")
+    
+    db.delete(floor)
+    db.commit()
+    return {"message": "Этаж успешно удалён"}
