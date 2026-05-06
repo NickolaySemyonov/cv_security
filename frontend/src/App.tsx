@@ -4,7 +4,9 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './components/Login';
 import PrivateRoute from './components/PrivateRoute';
 import ObjectsList from './components/ObjectsList';
-import FloorPage from './components/FloorPage'; 
+import FloorPage from './components/FloorPage';
+import FloorSetup from './components/FloorSetup';
+import FloorCameras from './components/FloorCameras';
 
 interface User {
   id: number;
@@ -54,6 +56,22 @@ function App() {
           element={
             <PrivateRoute>
               <FloorPage user={user} onLogout={handleLogout} />
+            </PrivateRoute>
+          } 
+        />
+        <Route 
+          path="/floors/:id/setup" 
+          element={
+            <PrivateRoute>
+              <FloorSetup user={user} onLogout={handleLogout} />
+            </PrivateRoute>
+          } 
+        />
+        <Route 
+          path="/floors/:id/cameras" 
+          element={
+            <PrivateRoute>
+              <FloorCameras user={user} onLogout={handleLogout} />
             </PrivateRoute>
           } 
         />

@@ -1,6 +1,6 @@
 # schemas.py
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List, Dict
 
 class UserLogin(BaseModel):
     login: str = Field(..., min_length=3, max_length=100)
@@ -40,3 +40,14 @@ class FloorResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+class CalibrationData(BaseModel):
+    calibration_points: List[Dict[str, float]]
+    calibration_distance: float
+    is_calibrated: bool = True
+
+class FloorSettingsResponse(BaseModel):
+    is_calibrated: bool
+    calibration_points: Optional[List[Dict[str, float]]] = None
+    calibration_distance: Optional[float] = None
+    pixels_per_meter: Optional[float] = None
