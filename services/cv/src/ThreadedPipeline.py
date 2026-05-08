@@ -1,9 +1,11 @@
+import os
 from dataclasses import dataclass, field
 import json
 import threading
 import queue
 import time
 
+from dotenv import load_dotenv
 from pika import ConnectionParameters, BlockingConnection, BasicProperties, PlainCredentials
 import cv2
 import numpy as np
@@ -210,12 +212,23 @@ class ThreadedPipeline:
 
     def _message_worker(self):
         print("[Message] worker started")
+
+        load_dotenv()
+        host = os.getenv("RABBITMQ_HOST", "localhost")
+        port = os.getenv("RABBITMQ_PORT", 5672)
+        heartbeat = os.getenv("RABBITMQ_HEARTBEAT", 600)
+        user = os.getenv("RABBITMQ_USER", "guest")
+        password = os.getenv("RABBITMQ_PASSWORD", "guest")
+
+        cv_exchange = os.getenv("RABBITMQ_CV_EXCHANGE", "cv_exchange")
+
         connection_params = ConnectionParameters(
-            host="localhost",
-            port=5672,
-            heartbeat=600,
-            credentials=PlainCredentials('rmuser', 'rmpassword'),
+            host=host,
+            port=port,
+            heartbeat=heartbeat,
+            credentials=PlainCredentials(user, password),
         )
+
         while not self.stop_event.is_set():
             try:
                 # 1) получаем обработанное сообщение (из предыдущего пайплайна)
@@ -226,12 +239,12 @@ class ThreadedPipeline:
                 # 2) одно соединение для нескольких сообщений
                 with BlockingConnection(connection_params) as conn:
                     with conn.channel() as ch:
-                        ch.queue_declare(queue="cv_messages", durable=True)
+                        # ch.queue_declare(queue=cv_queue_name, durable=True)
 
                         # 3) отправляем сообщение
                         ch.basic_publish(
-                            exchange='',
-                            routing_key='cv_messages',
+                            exchange=cv_exchange,
+                            routing_key="",
                             body=json.dumps(message).encode(),
                             properties=BasicProperties(
                                 delivery_mode=2,  # persistent

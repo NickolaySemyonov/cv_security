@@ -1,20 +1,26 @@
 import signal
 import sys
+
+import os
 import time
 
+from dotenv import load_dotenv
 
 from CameraConfig import CameraConfig
 from ThreadedPipeline import ThreadedPipeline
-from modules.InferenceModule import InferenceModule
 from modules.InferenceModule import InferenceConfig
+from modules.InferenceModule import InferenceModule
 
 
 def main():
+    load_dotenv()
+    test_media_path = os.getenv('TEST_MEDIA_PATH', './test-media/crowd.mp4')
+    model_path = os.getenv('MODEL_PATH', '../yolo11n.pt')
+
+
     # 1) конфиги камер и инференс модуля
     camera_cfg = CameraConfig()
-    # test_media_path = "src\\media\\30fps.mp4"
-    # test_media_path = "src\\media\\input.mp4"
-    test_media_path = "..\\test-media\\crowd.mp4"
+
     test_cam_pts = [(100, 200), (500, 200), (100, 600), (500, 600)]
     test_map_pts = [(0, 0), (10, 0), (0, 10), (10, 10)]
     camera_cfg.add_camera(
@@ -43,7 +49,7 @@ def main():
     )
     camera_cfg.build_homographies()
 
-    inference_cfg = InferenceConfig(model_path="yolo11n.pt", target_classes=[0])
+    inference_cfg = InferenceConfig(model_path=model_path, target_classes=[0])
 
     # 2) пайплайн
     inference_mdl = InferenceModule(config=inference_cfg)
