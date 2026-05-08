@@ -36,6 +36,7 @@ class Floor(Base):
     calibration_distance: Mapped[float | None] = mapped_column(Float, nullable=True)  # в метрах
     real_width_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
     real_height_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pixels_per_meter: Mapped[float | None] = mapped_column(Float, nullable=True) 
     is_calibrated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     area: Mapped[list['Area']] = relationship('Area', back_populates='floor')

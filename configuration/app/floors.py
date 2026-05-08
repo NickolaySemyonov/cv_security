@@ -6,12 +6,9 @@ from database import get_db
 from models import Floor, User
 from schemas import FloorCreate, FloorResponse, CalibrationData, FloorSettingsResponse
 from security import get_current_user
-from pydantic import BaseModel
 import re
 
 router = APIRouter(prefix="/floors", tags=["floors"])
-
-
 
 
 # ========== ЭНДПОИНТЫ ==========
@@ -104,10 +101,41 @@ async def calibrate_floor(
     # Вычисляем количество пикселей на метр
     pixels_per_meter = distance_px / calibration_data.calibration_distance
     
-    # Сохраняем данные калибровки
+    # Получаем размеры SVG из поля map
+    svg_width = 800   # значение по умолчанию
+    svg_height = 600  # значение по умолчанию
+    
+    if floor.map:
+        # Ищем viewBox в SVG
+        viewbox_match = re.search(r'viewBox="[0-9.]+ [0-9.]+ ([0-9.]+) ([0-9.]+)"', floor.map)
+        if viewbox_match:
+            svg_width = float(viewbox_match.group(1))
+            svg_height = float(viewbox_match.group(2))
+        else:
+            # Ищем width и height
+            width_match = re.search(r'width="([0-9.]+)"', floor.map)
+            height_match = re.search(r'height="([0-9.]+)"', floor.map)
+            if width_match:
+                svg_width = float(width_match.group(1))
+            if height_match:
+                svg_height = float(height_match.group(1))
+    
+    # Вычисляем реальные размеры на основе калибровочного отрезка
+    # Если калибровочный отрезок больше по X (горизонтальный)
+    if abs(points[1]["x"] - points[0]["x"]) > abs(points[1]["y"] - points[0]["y"]):
+        real_width_meters = calibration_data.calibration_distance
+        real_height_meters = real_width_meters * (svg_height / svg_width)
+    else:
+        # Калибровочный отрезок вертикальный
+        real_height_meters = calibration_data.calibration_distance
+        real_width_meters = real_height_meters * (svg_width / svg_height)
+    
+    # Сохраняем все данные калибровки
     floor.calibration_points = calibration_data.calibration_points
     floor.calibration_distance = calibration_data.calibration_distance
     floor.pixels_per_meter = pixels_per_meter
+    floor.real_width_meters = real_width_meters
+    floor.real_height_meters = real_height_meters
     floor.is_calibrated = calibration_data.is_calibrated
     
     db.commit()
@@ -115,6 +143,8 @@ async def calibrate_floor(
     return {
         "message": "Калибровка успешно сохранена",
         "pixels_per_meter": round(pixels_per_meter, 2),
+        "real_width_meters": round(real_width_meters, 2),
+        "real_height_meters": round(real_height_meters, 2),
         "distance_px": round(distance_px, 2),
         "distance_meters": calibration_data.calibration_distance
     }
@@ -135,7 +165,9 @@ async def get_floor_settings(
         is_calibrated=floor.is_calibrated if hasattr(floor, 'is_calibrated') else False,
         calibration_points=floor.calibration_points if hasattr(floor, 'calibration_points') else None,
         calibration_distance=floor.calibration_distance if hasattr(floor, 'calibration_distance') else None,
-        pixels_per_meter=floor.pixels_per_meter if hasattr(floor, 'pixels_per_meter') else None
+        pixels_per_meter=floor.pixels_per_meter if hasattr(floor, 'pixels_per_meter') else None,
+        real_width_meters=floor.real_width_meters if hasattr(floor, 'real_width_meters') else None,
+        real_height_meters=floor.real_height_meters if hasattr(floor, 'real_height_meters') else None
     )
 
 
@@ -154,6 +186,8 @@ async def reset_calibration(
     floor.calibration_points = None
     floor.calibration_distance = None
     floor.pixels_per_meter = None
+    floor.real_width_meters = None
+    floor.real_height_meters = None
     
     db.commit()
     

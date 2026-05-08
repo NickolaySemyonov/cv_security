@@ -10,6 +10,7 @@ interface Floor {
   number: number;
   place: string;
   map: string;
+  is_calibrated?: boolean;
 }
 
 interface User {
@@ -168,11 +169,7 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   // Полная отмена калибровки (удаление сохранённой)
   const cancelFullCalibration = async () => {
     try {
-      await api.patch(`/floors/${id}/calibrate`, {
-        calibration_points: null,
-        calibration_distance: null,
-        is_calibrated: false
-      });
+      await api.delete(`/floors/${id}/calibrate`);
       setIsCalibrated(false);
       setSavedCalibration(null);
       setCalibrationPoints([]);
@@ -192,12 +189,22 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
 
   const handleCompleteSetup = async () => {
     await saveCalibration();
-    navigate(`/floors/${id}/cameras`);
+    // Перенаправляем на страницу этажа с конкретным этажом
+    if (floor?.place && floor?.number) {
+      navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`);
+    } else {
+      navigate('/objects');
+    }
     onComplete?.();
   };
 
   const handleBack = () => {
-    navigate(`/objects/${encodeURIComponent(floor?.place || '')}/floors`);
+    // Выход на страницу этажа (текущий этаж)
+    if (floor?.place && floor?.number) {
+      navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`);
+    } else {
+      navigate('/objects');
+    }
   };
 
   const handleNextStep = () => {
@@ -207,7 +214,10 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   };
 
   const handlePrevStep = () => {
-    if (currentStep > 0) {
+    if (currentStep === 0) {
+      // На первом шаге выходим на страницу этажа
+      handleBack();
+    } else {
       setCurrentStep(currentStep - 1);
     }
   };
@@ -224,11 +234,9 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   const getSvgWithPoints = (originalSvg: string): string => {
     if (!originalSvg) return '';
     
-    // Находим закрывающий тег </svg>
     const svgEndIndex = originalSvg.lastIndexOf('</svg>');
     if (svgEndIndex === -1) return originalSvg;
     
-    // Создаём маркеры для точек
     let markers = '';
     
     // Сохранённые точки (если есть и не в режиме выбора)
@@ -239,7 +247,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
           <text x="${point.x + 12}" y="${point.y + 4}" fill="#10B981" font-size="12" font-weight="bold">${idx === 0 ? 'A' : 'B'}</text>
         `;
       });
-      // Рисуем линию между сохранёнными точками
       if (savedCalibration.points.length === 2) {
         markers += `
           <line x1="${savedCalibration.points[0].x}" y1="${savedCalibration.points[0].y}" 
@@ -266,7 +273,7 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
       `;
     }
     
-    // Точка при наведении мыши (предпросмотр)
+    // Точка при наведении мыши
     if (isSelectingPoints && hoverPoint && calibrationPoints.length < 2) {
       markers += `
         <circle cx="${hoverPoint.x}" cy="${hoverPoint.y}" r="6" fill="#3B82F6" fill-opacity="0.5" stroke="#3B82F6" stroke-width="2" />
@@ -361,12 +368,10 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
           </div>
         </div>
 
-        {/* Карта этажа с возможностью клика */}
+        {/* Карта этажа */}
         <div className="bg-white rounded-xl shadow-md p-4 mb-6">
           <div className="flex justify-between items-center mb-2">
-            <p className="text-sm text-gray-500">
-              Карта этажа:
-            </p>
+            <p className="text-sm text-gray-500">Карта этажа:</p>
             {isSelectingPoints && (
               <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
                 🔴 Выбрано {calibrationPoints.length} из 2 точек
@@ -442,6 +447,15 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
             <p className="text-gray-600 mb-4">
               Отметьте на карте две точки с известным расстоянием между ними.
             </p>
+            
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-yellow-800">
+                💡 Совет: Выберите объект с известной длиной:<br />
+                • Дверной проём — 0.9 метра<br />
+                • Ширина коридора — 2 метра<br />
+                • Длина стены — 5 метров
+              </p>
+            </div>
 
             <div className="border rounded-lg p-4 bg-gray-50">
               <div className="flex justify-between items-center mb-3">
@@ -451,7 +465,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
                 </span>
               </div>
               
-              {/* Кнопки управления калибровкой */}
               <div className="flex gap-2 mb-4">
                 {!isSelectingPoints && calibrationPoints.length < 2 && (
                   <button
@@ -540,13 +553,28 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
 
         {/* Кнопки навигации */}
         <div className="flex justify-between mt-6">
-          <button
-            onClick={handlePrevStep}
-            disabled={currentStep === 0}
-            className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 disabled:opacity-50 transition-colors"
-          >
-            ← Назад
-          </button>
+          <div className="flex gap-3">
+            {/* Кнопка "Назад" - только если не первый шаг */}
+            {currentStep === 1 && (
+              <button
+                onClick={handlePrevStep}
+                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
+              >
+                ← Назад
+              </button>
+            )}
+            
+            {/* Кнопка "Отмена" (Выйти) - всегда видна */}
+            <button
+              onClick={handleBack}
+              className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              Отмена
+            </button>
+          </div>
           
           {currentStep === stepNames.length - 1 ? (
             <button
@@ -559,7 +587,8 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
           ) : (
             <button
               onClick={handleNextStep}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              disabled={currentStep === 1 && !isCalibrated}
+              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:bg-gray-400 transition-colors"
             >
               Далее →
             </button>

@@ -37,6 +37,7 @@ class FloorResponse(BaseModel):
     number: int
     place: str
     map: str
+    is_calibrated: bool = False  
     
     class Config:
         from_attributes = True
@@ -51,3 +52,5 @@ class FloorSettingsResponse(BaseModel):
     calibration_points: Optional[List[Dict[str, float]]] = None
     calibration_distance: Optional[float] = None
     pixels_per_meter: Optional[float] = None
+    real_width_meters: Optional[float] = None
+    real_height_meters: Optional[float] = None
