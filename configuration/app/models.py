@@ -1,7 +1,7 @@
 import datetime
 import enum
 
-from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Enum, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, SmallInteger, String, Text, UniqueConstraint, text
+from sqlalchemy import Boolean, CheckConstraint, DateTime, Float, Enum, ForeignKeyConstraint, Integer, PrimaryKeyConstraint, SmallInteger, String, Text, ForeignKey, UniqueConstraint, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -17,29 +17,6 @@ class WeekDays(str, enum.Enum):
     FRIDAY = 'Friday'
     SATURDAY = 'Saturday'
     SUNDAY = 'Sunday'
-
-
-class Floor(Base):
-    __tablename__ = 'floor'
-    __table_args__ = (
-        CheckConstraint('number >= 0', name='floor_number_check'),
-        PrimaryKeyConstraint('id', name='floor_pkey'),
-        UniqueConstraint('place', 'number', name='uq_place_number')
-    )
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    number: Mapped[int] = mapped_column(SmallInteger, nullable=False)
-    place: Mapped[str] = mapped_column(String(100), nullable=False)
-    map: Mapped[str] = mapped_column(Text, nullable=False)
-    
-    calibration_points: Mapped[dict | None] = mapped_column(JSONB, nullable=True)  # [[x1,y1], [x2,y2]]
-    calibration_distance: Mapped[float | None] = mapped_column(Float, nullable=True)  # в метрах
-    real_width_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
-    real_height_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
-    pixels_per_meter: Mapped[float | None] = mapped_column(Float, nullable=True) 
-    is_calibrated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
-
-    area: Mapped[list['Area']] = relationship('Area', back_populates='floor')
 
 class User(Base):
     __tablename__ = 'user'
@@ -70,42 +47,68 @@ class Action(Base):
 
     user: Mapped['User'] = relationship('User', back_populates='action')
 
-
-class Area(Base):
-    __tablename__ = 'area'
+class Floor(Base):
+    __tablename__ = 'floor'
     __table_args__ = (
-        CheckConstraint("type::text = ANY (ARRAY['green'::character varying, 'red'::character varying]::text[])", name='area_type_check'),
-        ForeignKeyConstraint(['floor_id'], ['floor.id'], ondelete='CASCADE', name='fk_floor'),
-        PrimaryKeyConstraint('id', name='area_pkey')
+        CheckConstraint('number >= 0', name='floor_number_check'),
+        PrimaryKeyConstraint('id', name='floor_pkey'),
+        UniqueConstraint('place', 'number', name='uq_place_number')
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    red_zone: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
-    type: Mapped[str] = mapped_column(String(6), nullable=False, server_default=text("'green'::character varying"))
-    floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    number: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    place: Mapped[str] = mapped_column(String(100), nullable=False)
+    map: Mapped[str] = mapped_column(Text, nullable=False)
+    
+    calibration_points: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    calibration_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
+    real_width_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    real_height_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
+    pixels_per_meter: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_calibrated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    floor: Mapped['Floor'] = relationship('Floor', back_populates='area')
-    camera: Mapped[list['Camera']] = relationship('Camera', back_populates='area')
-    schedule: Mapped[list['Schedule']] = relationship('Schedule', back_populates='area')
+    areas: Mapped[list['Area']] = relationship('Area', back_populates='floor')
+    cameras: Mapped[list['Camera']] = relationship('Camera', back_populates='floor')
 
 
 class Camera(Base):
     __tablename__ = 'camera'
     __table_args__ = (
-        ForeignKeyConstraint(['area_id'], ['area.id'], ondelete='CASCADE', name='fk_area'),
+        ForeignKeyConstraint(['floor_id'], ['floor.id'], ondelete='CASCADE', name='fk_floor'),
+        ForeignKeyConstraint(['area_id'], ['area.id'], ondelete='SET NULL', name='fk_area'),
         PrimaryKeyConstraint('id', name='camera_pkey')
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('false'))
+    position: Mapped[dict] = mapped_column(JSONB, nullable=False)
     visible_zone: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    points_of_homography: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    distance_between_points: Mapped[dict] = mapped_column(JSONB, nullable=False)
-    area_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('true'))
+    points_of_homography: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    distance_between_points: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    area_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('area.id', ondelete='SET NULL'), nullable=True)
 
-    area: Mapped['Area'] = relationship('Area', back_populates='camera')
+    floor: Mapped['Floor'] = relationship('Floor', back_populates='cameras')
+    area: Mapped['Area | None'] = relationship('Area', back_populates='cameras')
     detection: Mapped[list['Detection']] = relationship('Detection', back_populates='camera')
 
+
+class Area(Base):
+    __tablename__ = 'area'
+    __table_args__ = (
+        CheckConstraint("type IN ('green', 'red')", name='area_type_check'),
+        ForeignKeyConstraint(['floor_id'], ['floor.id'], ondelete='CASCADE', name='fk_floor'),
+        PrimaryKeyConstraint('id', name='area_pkey')
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    red_zone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    type: Mapped[str] = mapped_column(String(6), nullable=False, default='green')
+    floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+
+    floor: Mapped['Floor'] = relationship('Floor', back_populates='areas')
+    cameras: Mapped[list['Camera']] = relationship('Camera', back_populates='area')
+    schedule: Mapped[list['Schedule']] = relationship('Schedule', back_populates='area')
 
 class Schedule(Base):
     __tablename__ = 'schedule'

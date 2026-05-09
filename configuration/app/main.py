@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from auth import router as auth_router
 from security import get_current_user 
 from models import User
+from cameras import router as cameras_router
 from floors import router as floors_router
 
 app = FastAPI(title="CV Security API")
@@ -18,6 +19,8 @@ app.add_middleware(
 
 app.include_router(auth_router)
 app.include_router(floors_router)
+app.include_router(cameras_router)
+
 
 @app.get("/protected")
 async def protected_route(current_user: User = Depends(get_current_user)):

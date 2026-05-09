@@ -1,6 +1,6 @@
 # schemas.py
 from pydantic import BaseModel, Field
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Any
 
 class UserLogin(BaseModel):
     login: str = Field(..., min_length=3, max_length=100)
@@ -54,3 +54,30 @@ class FloorSettingsResponse(BaseModel):
     pixels_per_meter: Optional[float] = None
     real_width_meters: Optional[float] = None
     real_height_meters: Optional[float] = None
+
+
+class CameraBase(BaseModel):
+    position: Dict[str, float]  
+    visible_zone: Dict[str, Any]  
+    is_active: bool = True
+    points_of_homography: Optional[Dict[str, Any]] = None
+    distance_between_points: Optional[Dict[str, Any]] = None
+    floor_id: int
+    area_id: Optional[int] = None  
+
+class CameraCreate(CameraBase):
+    pass
+
+class CameraUpdate(BaseModel):
+    position: Optional[Dict[str, float]] = None
+    visible_zone: Optional[Dict[str, Any]] = None
+    is_active: Optional[bool] = None
+    points_of_homography: Optional[Dict[str, Any]] = None
+    distance_between_points: Optional[Dict[str, Any]] = None
+    area_id: Optional[int] = None  # ← ДОБАВИТЬ ЭТУ СТРОКУ
+
+class CameraResponse(CameraBase):
+    id: int
+    
+    class Config:
+        from_attributes = True

@@ -18,6 +18,13 @@ interface User {
   login: string;
 }
 
+interface Camera {
+  id: number;
+  position: { x: number; y: number };
+  visible_zone: { vertices: number[][] };
+  is_active: boolean;
+}
+
 interface FloorPageProps {
   user: User | null;
   onLogout: () => void;
@@ -34,15 +41,20 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [selectedFloorNumber, setSelectedFloorNumber] = useState<number>(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [cameras, setCameras] = useState<Camera[]>([]);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Получаем номер этажа из URL query параметра
+  // Получаем номер этажа из URL query параметра только при первой загрузке
   useEffect(() => {
-    const params = new URLSearchParams(location.search);
-    const floorParam = params.get('floor');
-    if (floorParam) {
-      setSelectedFloorNumber(parseInt(floorParam));
+    if (isInitialLoad) {
+      const params = new URLSearchParams(location.search);
+      const floorParam = params.get('floor');
+      if (floorParam) {
+        setSelectedFloorNumber(parseInt(floorParam));
+      }
+      setIsInitialLoad(false);
     }
-  }, [location.search]);
+  }, [location.search, isInitialLoad]);
 
   useEffect(() => {
     fetchFloors();
@@ -60,6 +72,35 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   }, [selectedFloorNumber, floors]);
 
+  useEffect(() => {
+    if (currentFloor?.id) {
+      fetchCameras();
+    }
+  }, [currentFloor?.id]);
+
+  // Проверяем, были ли обновлены камеры (при возврате со страницы добавления камер)
+  useEffect(() => {
+    const checkCamerasUpdate = () => {
+      const camerasUpdated = sessionStorage.getItem('camerasUpdated');
+      if (camerasUpdated && currentFloor?.id) {
+        sessionStorage.removeItem('camerasUpdated');
+        fetchCameras();
+      }
+    };
+    
+    checkCamerasUpdate();
+    
+    // Обновляем камеры при фокусе окна
+    const handleFocus = () => {
+      if (currentFloor?.id) {
+        fetchCameras();
+      }
+    };
+    
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [currentFloor?.id]);
+
   const fetchFloors = async () => {
     try {
       setLoading(true);
@@ -68,7 +109,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
       setFloors(objectFloors);
       
       if (objectFloors.length > 0) {
-        // Проверяем, есть ли этаж с выбранным номером
         const targetFloor = objectFloors.find(f => f.number === selectedFloorNumber);
         if (targetFloor) {
           setCurrentFloor(targetFloor);
@@ -85,6 +125,16 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   };
 
+  const fetchCameras = async () => {
+    if (!currentFloor?.id) return;
+    try {
+      const response = await api.get(`/cameras/floor/${currentFloor.id}`);
+      setCameras(response.data);
+    } catch (error) {
+      console.error('Ошибка загрузки камер:', error);
+    }
+  };
+
   const handleSetup = () => {
     if (currentFloor?.id) {
       navigate(`/floors/${currentFloor.id}/setup`);
@@ -97,8 +147,43 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   };
 
+  const handleFloorChange = (floorNumber: number) => {
+    setSelectedFloorNumber(floorNumber);
+    // Обновляем URL без перезагрузки страницы
+    navigate(`/objects/${encodeURIComponent(decodedPlace)}/floors?floor=${floorNumber}`, { replace: true });
+  };
+
   const handleBack = () => {
     navigate('/objects');
+  };
+
+  const getSvgWithCameras = (svgContent: string): string => {
+    if (!svgContent) return '';
+    
+    let modifiedSvg = svgContent;
+    
+    cameras.forEach((camera) => {
+      if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
+        const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
+        const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
+        modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
+      }
+      
+      if (camera.position) {
+        const x = camera.position.x;
+        const y = camera.position.y;
+        const cameraIcon = `
+          <g transform="translate(${x - 12}, ${y - 12})">
+            <circle cx="12" cy="12" r="12" fill="#FF4444" stroke="#fff" stroke-width="2" />
+            <circle cx="12" cy="12" r="6" fill="#fff" />
+            <circle cx="12" cy="12" r="3" fill="#FF4444" />
+          </g>
+        `;
+        modifiedSvg = modifiedSvg.replace('</svg>', cameraIcon + '</svg>');
+      }
+    });
+    
+    return modifiedSvg;
   };
 
   if (loading) {
@@ -148,7 +233,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
               {sortedFloors.map((floor) => (
                 <button
                   key={floor.number}
-                  onClick={() => setSelectedFloorNumber(floor.number)}
+                  onClick={() => handleFloorChange(floor.number)}
                   className={`px-4 py-2 rounded-xl transition-all duration-200 ${
                     selectedFloorNumber === floor.number
                       ? 'bg-blue-600 text-white shadow-md'
@@ -200,6 +285,11 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
                   ✓ Откалиброван
                 </span>
               )}
+              {cameras.length > 0 && (
+                <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
+                  🎥 {cameras.length} {cameras.length === 1 ? 'камера' : 'камер'}
+                </span>
+              )}
             </h2>
           </div>
           <div 
@@ -207,7 +297,9 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             style={{ minHeight: '500px' }}
           >
             <div
-              dangerouslySetInnerHTML={{ __html: currentFloor.map }}
+              dangerouslySetInnerHTML={{ 
+                __html: getSvgWithCameras(currentFloor.map) 
+              }}
               className="shadow-inner bg-white rounded-lg"
             />
           </div>
