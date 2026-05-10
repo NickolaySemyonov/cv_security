@@ -1,0 +1,5 @@
+fastapi
+faststream[rabbit]
+uvicorn
+websockets
+dotenv
