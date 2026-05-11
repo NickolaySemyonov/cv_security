@@ -57,13 +57,14 @@ class FloorSettingsResponse(BaseModel):
 
 
 class CameraBase(BaseModel):
-    position: Dict[str, float]  
-    visible_zone: Dict[str, Any]  
+    position: Dict[str, float]
+    visible_zone: Dict[str, Any]
     is_active: bool = True
+    is_configured: bool = False  
     points_of_homography: Optional[Dict[str, Any]] = None
     distance_between_points: Optional[Dict[str, Any]] = None
     floor_id: int
-    area_id: Optional[int] = None  
+    area_id: Optional[int] = None 
 
 class CameraCreate(CameraBase):
     pass
@@ -78,6 +79,7 @@ class CameraUpdate(BaseModel):
 
 class CameraResponse(CameraBase):
     id: int
+    is_configured: bool = False
     
     class Config:
         from_attributes = True

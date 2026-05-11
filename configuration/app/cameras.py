@@ -33,6 +33,7 @@ async def get_camera(
         raise HTTPException(404, "Камера не найдена")
     return camera
 
+
 @router.post("/", response_model=CameraResponse)
 async def create_camera(
     camera_data: CameraCreate,
@@ -48,15 +49,17 @@ async def create_camera(
         position=camera_data.position,
         visible_zone=camera_data.visible_zone,
         is_active=camera_data.is_active,
+        is_configured=camera_data.is_configured,
         points_of_homography=camera_data.points_of_homography,
         distance_between_points=camera_data.distance_between_points,
         floor_id=camera_data.floor_id,
-        area_id=camera_data.area_id  # может быть None
+        area_id=camera_data.area_id
     )
     db.add(camera)
     db.commit()
     db.refresh(camera)
     return camera
+
 
 @router.patch("/{camera_id}", response_model=CameraResponse)
 async def update_camera(
@@ -77,6 +80,27 @@ async def update_camera(
     db.commit()
     db.refresh(camera)
     return camera
+
+
+@router.patch("/{camera_id}/homography")
+async def update_camera_homography(
+    camera_id: int,
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Обновить точки гомографии камеры"""
+    camera = db.query(Camera).filter(Camera.id == camera_id).first()
+    if not camera:
+        raise HTTPException(404, "Камера не найдена")
+    
+    camera.points_of_homography = data.get("points_of_homography")
+    camera.distance_between_points = data.get("distance_between_points")
+    camera.is_configured = data.get("is_configured", True)
+    
+    db.commit()
+    
+    return {"message": "Гомография сохранена"}
 
 
 @router.delete("/{camera_id}")

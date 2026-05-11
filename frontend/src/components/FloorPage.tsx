@@ -23,6 +23,7 @@ interface Camera {
   position: { x: number; y: number };
   visible_zone: { vertices: number[][] };
   is_active: boolean;
+  is_configured?: boolean;
 }
 
 interface FloorPageProps {
@@ -44,14 +45,12 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Получаем номер этажа из URL query параметра только при первой загрузке
+  // Получаем номер этажа из URL query параметра
   useEffect(() => {
-    if (isInitialLoad) {
-      const params = new URLSearchParams(location.search);
-      const floorParam = params.get('floor');
-      if (floorParam) {
-        setSelectedFloorNumber(parseInt(floorParam));
-      }
+    const params = new URLSearchParams(location.search);
+    const floorParam = params.get('floor');
+    if (floorParam && isInitialLoad) {
+      setSelectedFloorNumber(parseInt(floorParam));
       setIsInitialLoad(false);
     }
   }, [location.search, isInitialLoad]);
@@ -72,6 +71,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   }, [selectedFloorNumber, floors]);
 
+  // Загружаем камеры при изменении текущего этажа
   useEffect(() => {
     if (currentFloor?.id) {
       fetchCameras();
@@ -90,7 +90,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     
     checkCamerasUpdate();
     
-    // Обновляем камеры при фокусе окна
     const handleFocus = () => {
       if (currentFloor?.id) {
         fetchCameras();
@@ -149,7 +148,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   const handleFloorChange = (floorNumber: number) => {
     setSelectedFloorNumber(floorNumber);
-    // Обновляем URL без перезагрузки страницы
     navigate(`/objects/${encodeURIComponent(decodedPlace)}/floors?floor=${floorNumber}`, { replace: true });
   };
 
@@ -157,12 +155,16 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     navigate('/objects');
   };
 
+  // Функция для отображения камер на SVG (только настроенные)
   const getSvgWithCameras = (svgContent: string): string => {
     if (!svgContent) return '';
     
     let modifiedSvg = svgContent;
     
-    cameras.forEach((camera) => {
+    // Показываем только настроенные камеры
+    const configuredCameras = cameras.filter(c => c.is_configured === true);
+    
+    configuredCameras.forEach((camera) => {
       if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
         const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
@@ -185,6 +187,8 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     
     return modifiedSvg;
   };
+
+  const configuredCamerasCount = cameras.filter(c => c.is_configured === true).length;
 
   if (loading) {
     return (
@@ -270,7 +274,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                 </svg>
-                + Добавить камеру
+                Камеры
               </button>
             )}
           </div>
@@ -285,9 +289,9 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
                   ✓ Откалиброван
                 </span>
               )}
-              {cameras.length > 0 && (
+              {configuredCamerasCount > 0 && (
                 <span className="ml-2 text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                  🎥 {cameras.length} {cameras.length === 1 ? 'камера' : 'камер'}
+                  🎥 {configuredCamerasCount} {configuredCamerasCount === 1 ? 'камера' : 'камер'}
                 </span>
               )}
             </h2>

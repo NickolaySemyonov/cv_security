@@ -87,6 +87,7 @@ class Camera(Base):
     distance_between_points: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
     area_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('area.id', ondelete='SET NULL'), nullable=True)
+    is_configured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     floor: Mapped['Floor'] = relationship('Floor', back_populates='cameras')
     area: Mapped['Area | None'] = relationship('Area', back_populates='cameras')

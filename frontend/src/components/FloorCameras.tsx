@@ -5,6 +5,7 @@ import api from '../config/axios';
 import Header from './Header';
 import Footer from './Footer';
 import CameraDrawer from './CameraDrawer';
+import HomographyCalibration from './HomographyCalibration';
 
 interface Floor {
   id: number;
@@ -23,6 +24,8 @@ interface Camera {
   position: { x: number; y: number };
   visible_zone: { vertices: number[][] };
   is_active: boolean;
+  is_configured?: boolean;
+  points_of_homography?: any;
 }
 
 interface FloorCamerasProps {
@@ -37,6 +40,8 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   const [loading, setLoading] = useState(true);
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [showCameraDrawer, setShowCameraDrawer] = useState(false);
+  const [showHomographyCalibration, setShowHomographyCalibration] = useState(false);
+  const [selectedCameraForCalibration, setSelectedCameraForCalibration] = useState<Camera | null>(null);
 
   useEffect(() => {
     fetchFloor();
@@ -71,6 +76,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       });
       await fetchCameras();
       setShowCameraDrawer(false);
+      sessionStorage.setItem('camerasUpdated', Date.now().toString());
     } catch (error) {
       console.error('Ошибка сохранения камеры:', error);
       alert('Ошибка при сохранении камеры');
@@ -82,6 +88,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       try {
         await api.delete(`/cameras/${cameraId}`);
         await fetchCameras();
+        sessionStorage.setItem('camerasUpdated', Date.now().toString());
       } catch (error) {
         console.error('Ошибка удаления камеры:', error);
         alert('Ошибка при удалении камеры');
@@ -89,10 +96,15 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
     }
   };
 
+  const openHomographyCalibration = (camera: Camera) => {
+    setSelectedCameraForCalibration(camera);
+    setShowHomographyCalibration(true);
+  };
+
   const handleBackToFloor = () => {
     if (floor?.place && floor?.number) {
-      // Передаём параметр refresh для принудительного обновления
-      navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}&refresh=${Date.now()}`);
+      sessionStorage.setItem('camerasUpdated', Date.now().toString());
+      navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`);
     } else {
       navigate('/objects');
     }
@@ -130,7 +142,6 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
- proiektuak.
         <Header user={user} onLogout={onLogout} title="Добавление камер" />
         <main className="flex-grow flex justify-center items-center">
           <div className="text-xl text-gray-600">Загрузка...</div>
@@ -198,19 +209,55 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
               </h3>
               <div className="space-y-2 max-h-48 overflow-auto">
                 {cameras.map((camera, idx) => (
-                  <div key={camera.id} className="bg-gray-50 rounded-lg p-3 flex justify-between items-center">
-                    <div>
-                      <span className="font-medium">Камера {idx + 1}</span>
-                      <span className="text-sm text-gray-500 ml-3">
-                        Позиция: ({Math.round(camera.position.x)}, {Math.round(camera.position.y)})
-                      </span>
+                  <div key={camera.id} className="bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium">Камера {idx + 1}</span>
+                          <span className="text-sm text-gray-500">
+                            Позиция: ({Math.round(camera.position.x)}, {Math.round(camera.position.y)})
+                          </span>
+                          {camera.is_configured ? (
+                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                              </svg>
+                              Откалибрована
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                              </svg>
+                              Не откалибрована
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        {camera.is_configured ? (
+                          <button
+                            onClick={() => openHomographyCalibration(camera)}
+                            className="text-blue-500 hover:text-blue-700 text-sm px-3 py-1 rounded hover:bg-blue-50"
+                          >
+                            Перекалибровать
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => openHomographyCalibration(camera)}
+                            className="text-blue-500 hover:text-blue-700 text-sm px-3 py-1 rounded hover:bg-blue-50"
+                          >
+                            Задать точки гомографии
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleDeleteCamera(camera.id)}
+                          className="text-red-500 hover:text-red-700 text-sm px-3 py-1 rounded hover:bg-red-50"
+                        >
+                          Удалить
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      onClick={() => handleDeleteCamera(camera.id)}
-                      className="text-red-500 hover:text-red-700 text-sm px-3 py-1 rounded hover:bg-red-50"
-                    >
-                      Удалить
-                    </button>
                   </div>
                 ))}
               </div>
@@ -220,6 +267,19 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       </main>
 
       <Footer />
+
+      {showHomographyCalibration && selectedCameraForCalibration && (
+        <HomographyCalibration
+          cameraId={selectedCameraForCalibration.id}
+          cameraZone={selectedCameraForCalibration.visible_zone.vertices}
+          cameraPosition={selectedCameraForCalibration.position}
+          onSave={() => {
+            setShowHomographyCalibration(false);
+            fetchCameras();
+          }}
+          onCancel={() => setShowHomographyCalibration(false)}
+        />
+      )}
     </div>
   );
 };
