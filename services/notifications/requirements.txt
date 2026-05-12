@@ -2,4 +2,4 @@ fastapi
 faststream[rabbit]
 uvicorn
 websockets
-dotenv
+pydantic-settings

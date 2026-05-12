@@ -1,31 +1,26 @@
 import json
-import os
 
 import uvicorn
-from dotenv import load_dotenv
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from faststream.rabbit.fastapi import RabbitRouter
 from faststream.rabbit import RabbitExchange, RabbitQueue, ExchangeType
+from faststream.rabbit.fastapi import RabbitRouter
 from faststream.security import SASLPlaintext
 
-from connection_manager import ConnectionManager
+from src.config.constants import CV_QUEUE_NAME, CV_EXCHANGE_NAME, ALERTS_QUEUE_NAME, ALERTS_EXCHANGE_NAME
+from src.config.settings import Settings
+from src.connection_manager import ConnectionManager
 
-CV_EXCHANGE_NAME = "cv_exchange"
-CV_QUEUE_NAME = "raw_detections_broadcast"
-ALERTS_EXCHANGE_NAME = "alerts_exchange"
-ALERTS_QUEUE_NAME = "alerts"
-
-load_dotenv()
+settings = Settings()
 conn_mgr = ConnectionManager()
 
 # region Rabbit Router
 rabbit_router = RabbitRouter(
-    host=os.getenv("RABBITMQ_HOST"),
-    port=int(os.getenv("RABBITMQ_PORT")),
+    host=settings.rabbitmq_host,
+    port=settings.rabbitmq_port,
     security=SASLPlaintext(
-        username=os.getenv("RABBITMQ_USER"),
-        password=os.getenv("RABBITMQ_PASSWORD")
+        username=settings.rabbitmq_user,
+        password=settings.rabbitmq_password
     )
 )
 
@@ -81,9 +76,9 @@ def stats_endpoint():
 
 if __name__ == "__main__":
     uvicorn.run(
-        "main:app",
-        host=os.getenv("UVICORN_HOST"),
-        port=int(os.getenv("UVICORN_PORT")),
-        reload=True,
-        log_level="info",
+        "src.main:app",
+        host=settings.uvicorn_host,
+        port=settings.uvicorn_port,
+        reload=settings.uvicorn_reload,
+        log_level=settings.uvicorn_log_level,
     )
