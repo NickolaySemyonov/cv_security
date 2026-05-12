@@ -1,0 +1,2 @@
+faststream[rabbit]
+pydantic-settings
