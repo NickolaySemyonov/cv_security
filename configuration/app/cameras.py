@@ -51,7 +51,6 @@ async def create_camera(
         is_active=camera_data.is_active,
         is_configured=camera_data.is_configured,
         points_of_homography=camera_data.points_of_homography,
-        distance_between_points=camera_data.distance_between_points,
         floor_id=camera_data.floor_id,
         area_id=camera_data.area_id
     )
@@ -95,7 +94,6 @@ async def update_camera_homography(
         raise HTTPException(404, "Камера не найдена")
     
     camera.points_of_homography = data.get("points_of_homography")
-    camera.distance_between_points = data.get("distance_between_points")
     camera.is_configured = data.get("is_configured", True)
     
     db.commit()

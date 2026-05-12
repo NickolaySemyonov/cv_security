@@ -269,17 +269,18 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       <Footer />
 
       {showHomographyCalibration && selectedCameraForCalibration && (
-        <HomographyCalibration
-          cameraId={selectedCameraForCalibration.id}
-          cameraZone={selectedCameraForCalibration.visible_zone.vertices}
-          cameraPosition={selectedCameraForCalibration.position}
-          onSave={() => {
-            setShowHomographyCalibration(false);
-            fetchCameras();
-          }}
-          onCancel={() => setShowHomographyCalibration(false)}
-        />
-      )}
+      <HomographyCalibration
+        cameraId={selectedCameraForCalibration.id}
+        cameraZone={selectedCameraForCalibration.visible_zone.vertices}
+        cameraPosition={selectedCameraForCalibration.position}
+        svgContent={floor?.map || ''}  // ← передаём SVG карту
+        onSave={() => {
+          setShowHomographyCalibration(false);
+          fetchCameras();
+        }}
+        onCancel={() => setShowHomographyCalibration(false)}
+      />
+    )}
     </div>
   );
 };

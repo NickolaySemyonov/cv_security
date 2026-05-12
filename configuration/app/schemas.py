@@ -62,7 +62,6 @@ class CameraBase(BaseModel):
     is_active: bool = True
     is_configured: bool = False  
     points_of_homography: Optional[Dict[str, Any]] = None
-    distance_between_points: Optional[Dict[str, Any]] = None
     floor_id: int
     area_id: Optional[int] = None 
 
@@ -74,8 +73,7 @@ class CameraUpdate(BaseModel):
     visible_zone: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     points_of_homography: Optional[Dict[str, Any]] = None
-    distance_between_points: Optional[Dict[str, Any]] = None
-    area_id: Optional[int] = None  # ← ДОБАВИТЬ ЭТУ СТРОКУ
+    area_id: Optional[int] = None  
 
 class CameraResponse(CameraBase):
     id: int
@@ -83,3 +81,7 @@ class CameraResponse(CameraBase):
     
     class Config:
         from_attributes = True
+
+class HomographyData(BaseModel):
+    src_points: List[List[float]]  
+    dst_points: List[List[float]]  
