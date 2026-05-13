@@ -5,6 +5,7 @@ interface DetectionPoint {
   x: number;
   y: number;
   cameraId: number;
+  personId?: number;  // Добавляем ID человека для отслеживания
   timestamp: number;
 }
 
@@ -19,33 +20,57 @@ let globalDetections: DetectionPoint[] = [];
 let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let cameraToFloorMap: Map<number, number> = new Map();
 
+// Хранилище последних позиций людей по cameraId и personId
+let personPositions: Map<string, DetectionPoint> = new Map();
+
 function notifySubscribers() {
   subscribers.forEach(cb => cb([...globalDetections]));
 }
 
 async function processDetection(message: DetectionMessage) {
-  console.log(`📥 Камера ${message.camera_id}:`, message.translated_points);
+  console.log(`📥 Камера ${message.camera_id}: ${message.translated_points.length} человек`);
   
-  const newPoints = message.translated_points.map(point => ({
-    x: point[0],
-    y: point[1],
-    cameraId: message.camera_id,
-    timestamp: message.timestamp
-  }));
+  const now = Date.now() / 1000;
+  const cameraId = message.camera_id;
   
-  globalDetections.push(...newPoints);
+  // Обновляем позиции людей
+  message.translated_points.forEach((point, index) => {
+    const personId = index; // или можно использовать уникальный ID из сообщения
+    const key = `${cameraId}_${personId}`;
+    
+    const newPoint: DetectionPoint = {
+      x: point[0],
+      y: point[1],
+      cameraId: cameraId,
+      personId: personId,
+      timestamp: now
+    };
+    
+    personPositions.set(key, newPoint);
+  });
   
-  if (globalDetections.length > 100) {
-    globalDetections = globalDetections.slice(-100);
-  }
+  // Преобразуем Map в массив для отображения
+  globalDetections = Array.from(personPositions.values());
+  
+  // Удаляем старые точки (если человек пропал из кадра)
+  setTimeout(() => {
+    const currentTime = Date.now() / 1000;
+    let changed = false;
+    
+    for (const [key, point] of personPositions.entries()) {
+      if (point.timestamp < currentTime - 2) {
+        personPositions.delete(key);
+        changed = true;
+      }
+    }
+    
+    if (changed) {
+      globalDetections = Array.from(personPositions.values());
+      notifySubscribers();
+    }
+  }, 2000);
   
   notifySubscribers();
-  
-  setTimeout(() => {
-    const now = Date.now() / 1000;
-    globalDetections = globalDetections.filter(p => p.timestamp > now - 2);
-    notifySubscribers();
-  }, 2000);
 }
 
 function connectWebSocket() {
@@ -89,21 +114,12 @@ export function useCameraDetection() {
     console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
   };
 
-  // Простая фильтрация - без внутреннего состояния
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
     const filtered = detections.filter(d => {
       const cameraFloor = cameraToFloorMap.get(d.cameraId);
       return cameraFloor === floorId;
     });
-    console.log(`🔍 Фильтрация для этажа ${floorId}: ${filtered.length} точек из ${detections.length}`);
     return filtered;
-  };
-
-  // Очистка детекций
-  const clearDetections = () => {
-    globalDetections = [];
-    notifySubscribers();
-    console.log('🧹 Детекции очищены');
   };
 
   useEffect(() => {
@@ -132,7 +148,6 @@ export function useCameraDetection() {
     detections, 
     getDetectionsByFloor,
     registerFloorCameras,
-    clearDetections,
     isConnected 
   };
 }

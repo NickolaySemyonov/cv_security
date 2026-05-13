@@ -49,39 +49,29 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
   // Подключаемся к WebSocket для получения детекций
-  const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useCameraDetection();
+  const { detections, getDetectionsByFloor, registerFloorCameras, isConnected } = useCameraDetection();
 
-  // Получаем детекции только для текущего этажа
-  const floorDetections = getDetectionsByFloor(currentFloor?.id || 0);
+  // Находим камеру 12 и её этаж
+  const camera12 = cameras.find(c => c.id === 12);
+  const camera12FloorId = camera12?.floor_id;
+  
+  // Получаем детекции только для этажа, на котором находится камера 12
+  const floorDetections = getDetectionsByFloor(camera12FloorId || 0);
+  
+  // Показываем детекции только если текущий этаж совпадает с этажом камеры
+  const shouldShowDetections = currentFloor?.id === camera12FloorId;
 
-  // ДИАГНОСТИКА: проверяем камеру 12
+  // Отладка
   useEffect(() => {
-    console.log('=== ДИАГНОСТИКА КАМЕР ===');
-    console.log('Текущий этаж ID:', currentFloor?.id);
-    console.log('Номер этажа:', currentFloor?.number);
-    console.log('Все камеры:', cameras.map(c => ({ 
-      id: c.id, 
-      floor_id: c.floor_id, 
-      is_configured: c.is_configured 
-    })));
-    
-    const camera12 = cameras.find(c => c.id === 12);
+    console.log('=== ОТЛАДКА FLOOR PAGE ===');
     console.log('Камера 12:', camera12);
-    console.log('Камера 12 floor_id:', camera12?.floor_id);
+    console.log('Этаж камеры 12:', camera12FloorId);
     console.log('Текущий этаж ID:', currentFloor?.id);
-    console.log('Совпадают ли?', camera12?.floor_id === currentFloor?.id);
-    
-    const hasCamera = cameras.some(c => c.id === 12 && c.floor_id === currentFloor?.id);
-    console.log('hasCamera12OnThisFloor:', hasCamera);
-  }, [cameras, currentFloor]);
-
-  // ДИАГНОСТИКА: детекции
-  useEffect(() => {
-    console.log('=== ДИАГНОСТИКА ДЕТЕКЦИЙ ===');
+    console.log('Номер текущего этажа:', currentFloor?.number);
+    console.log('Показывать детекции:', shouldShowDetections);
+    console.log('Детекций для этажа камеры:', floorDetections.length);
     console.log('Всего детекций:', detections.length);
-    console.log('Детекции для этажа', currentFloor?.id, ':', floorDetections.length);
-    console.log('WebSocket подключен:', isConnected);
-  }, [detections, floorDetections, isConnected, currentFloor]);
+  }, [camera12, camera12FloorId, currentFloor, shouldShowDetections, floorDetections, detections]);
 
   // Получаем номер этажа из URL query параметра
   useEffect(() => {
@@ -130,11 +120,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
       }
     }
   }, [currentFloor?.id, cameras, registerFloorCameras]);
-
-  // Очищаем детекции при смене этажа
-  useEffect(() => {
-    clearDetections();
-  }, [selectedFloorNumber, clearDetections]);
 
   // Проверяем, были ли обновлены камеры (при возврате со страницы добавления камер)
   useEffect(() => {
@@ -256,9 +241,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }));
 
   const configuredCamerasCount = cameras.filter(c => c.is_configured === true).length;
-  
-  // ВРЕМЕННО: всегда показываем детекции для отладки
-  const showDetections = true;
 
   if (loading) {
     return (
@@ -366,7 +348,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
                   🎥 {configuredCamerasCount} {configuredCamerasCount === 1 ? 'камера' : 'камер'}
                 </span>
               )}
-              {isConnected && (
+              {isConnected && shouldShowDetections && (
                 <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
                   🟢 Детекция активна
                 </span>
@@ -377,13 +359,19 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             className="p-4 bg-gray-50 flex justify-center overflow-auto"
             style={{ minHeight: '500px' }}
           >
-            {/* ВСЕГДА показываем DetectionOverlay для отладки */}
-            <DetectionOverlay
-              svgContent={getSvgWithCameras(currentFloor.map)}
-              detections={floorDetections}
-              cameras={camerasForOverlay}
-              isConnected={isConnected}
-            />
+            {shouldShowDetections ? (
+              <DetectionOverlay
+                svgContent={getSvgWithCameras(currentFloor.map)}
+                detections={floorDetections}
+                cameras={camerasForOverlay}
+                isConnected={isConnected}
+              />
+            ) : (
+              <div
+                dangerouslySetInnerHTML={{ __html: getSvgWithCameras(currentFloor.map) }}
+                className="shadow-inner bg-white rounded-lg"
+              />
+            )}
           </div>
         </div>
       </main>
