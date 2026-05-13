@@ -2,4 +2,4 @@ ultralytics
 opencv-python
 pika
 numpy
-dotenv
+pydantic-settings

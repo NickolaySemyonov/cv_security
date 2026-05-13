@@ -4,49 +4,31 @@ import sys
 import os
 import time
 
-from dotenv import load_dotenv
-
-from CameraConfig import CameraConfig
-from ThreadedPipeline import ThreadedPipeline
-from modules.InferenceModule import InferenceConfig
-from modules.InferenceModule import InferenceModule
+from src.CameraConfig import CameraConfig
+from src.ThreadedPipeline import ThreadedPipeline
+from src.config.settings import Settings
+from src.modules.InferenceModule import InferenceConfig
+from src.modules.InferenceModule import InferenceModule
 
 
 def main():
-    load_dotenv()
+    settings = Settings()
     test_media_path = os.getenv('TEST_MEDIA_PATH', './test-media/crowd.mp4')
     model_path = os.getenv('MODEL_PATH', '../yolo11n.pt')
-
 
     # 1) конфиги камер и инференс модуля
     camera_cfg = CameraConfig()
 
     test_cam_pts = [(100, 200), (500, 200), (100, 600), (500, 600)]
     test_map_pts = [(0, 0), (10, 0), (0, 10), (10, 10)]
-    camera_cfg.add_camera(
-        1,
-        test_media_path,
-        homography_points_cam=test_cam_pts,
-        homography_points_map=test_map_pts,
-    )
-    camera_cfg.add_camera(
-        2,
-        test_media_path,
-        homography_points_cam=test_cam_pts,
-        homography_points_map=test_map_pts,
-    )
-    camera_cfg.add_camera(
-        3,
-        test_media_path,
-        homography_points_cam=test_cam_pts,
-        homography_points_map=test_map_pts,
-    )
-    camera_cfg.add_camera(
-        4,
-        test_media_path,
-        homography_points_cam=test_cam_pts,
-        homography_points_map=test_map_pts,
-    )
+
+    for idx in range(4):
+        camera_cfg.add_camera(
+            idx,
+            test_media_path,
+            homography_points_cam=test_cam_pts,
+            homography_points_map=test_map_pts,
+        )
     camera_cfg.build_homographies()
 
     inference_cfg = InferenceConfig(model_path=model_path, target_classes=[0])
@@ -55,6 +37,7 @@ def main():
     inference_mdl = InferenceModule(config=inference_cfg)
     pipeline = ThreadedPipeline(
         camera_config=camera_cfg,
+        settings=settings,
         inference_module=inference_mdl,
     )
 

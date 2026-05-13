@@ -1,20 +1,13 @@
-import os
-from dataclasses import dataclass, field
-import json
-import threading
 import queue
+import threading
 import time
+from dataclasses import dataclass, field
 
-from pika import ConnectionParameters, BlockingConnection, BasicProperties, PlainCredentials
 import cv2
 import numpy as np
 
-from src.Broker import Broker
 from src.CameraConfig import CameraConfig
-from src.config.settings import Settings
-from src.config.constants import CV_EXCHANGE_NAME
 from src.modules.InferenceModule import InferenceModule
-from src.utils import HomographyUtils
 
 
 @dataclass
@@ -34,24 +27,20 @@ class ProcessedData:
     timestamp: float
 
 
-class ThreadedPipeline:
+class ThreadedPipelineTestDisplay:
     def __init__(
             self,
             camera_config: CameraConfig,
-            settings: Settings,
             inference_module: InferenceModule,
             capture_queue_size=2,
             processed_queue_size=10,
     ):
         self.camera_config = camera_config
-        self.settings = settings
         self.cap_queue_size = capture_queue_size
         self.processed_queue_size = processed_queue_size
 
         # Inference
         self.inference_module = inference_module
-        # Messaging
-        self.broker = Broker(self.settings)
 
         # Control flags
         self.running = False
@@ -67,7 +56,10 @@ class ThreadedPipeline:
         # Threads
         self.capture_threads: list[threading.Thread] = []
         self.process_thread = None
-        self.message_thread = None
+        self.display_thread = None
+
+        # Display helpers
+        self.last_frames: dict[int, np.ndarray] = {}  # camera_id → frame
 
     def _capture_worker(self, camera_id: int, camera_source: str):
         print(f"[Capture] Thread started for {camera_id} @ {camera_source}")
@@ -82,7 +74,7 @@ class ThreadedPipeline:
             ret, frame = cap.read()
             if not ret:
                 print(f"[Capture] Failed to read frame from {camera_id}, retrying...")
-                time.sleep(0.5)
+                time.sleep(0.1)
                 continue
 
             try:
@@ -98,7 +90,7 @@ class ThreadedPipeline:
             except queue.Full:
                 print(f"[Capture] Queue full for {camera_id}")
 
-            time.sleep(0.05)  # 20 FPS imitation while reading from file
+            # time.sleep(0.75)  # 20 FPS
 
         # Releasing resources when got stop signal
         print(f"[Capture] Stopping thread for {camera_id}")
@@ -124,6 +116,7 @@ class ThreadedPipeline:
 
             # 3) обрабатываем все найденные кадры (поочередно)
             for item in items:
+                # frame = item["frame"]
                 try:
                     inference_result = self.inference_module.process_frame(
                         frame=item.frame
@@ -143,50 +136,75 @@ class ThreadedPipeline:
                 except Exception as e:
                     print(f"[Process] Inference error for {item.cam_id}: {e}")
 
-    def _message_worker(self):
-        print("[Message] worker started")
-        while not self.stop_event.is_set():
-            item = None
-            try:
-                item = self.processed_queue.get(timeout=1.0)
-                message = self._build_message(item)
+    def _display_worker(self):
+        print("[Display] Tile worker started")
+        window_name = "Cameras Tile"
 
-                success = self.broker.publish(
-                    CV_EXCHANGE_NAME,
-                    "",
-                    json.dumps(message).encode()
-                )
-                if not success:
-                    self.processed_queue.task_done()
-                    print(f"[Message] Publish failed, dropping cam {item.cam_id}")
+        cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+        cv2.resizeWindow(window_name, 1200, 900)  # под размеры тайла
+
+        cols = 2  # 2 камеры в строке
+        while not self.stop_event.is_set():
+            try:
+                # сначала обновляем last_frames
+                while True:
+                    try:
+                        item: ProcessedData = self.processed_queue.get(timeout=0.01)
+                        self.last_frames[item.cam_id] = item.debug_plot
+                    except queue.Empty:
+                        break
+
+                # если нет кадров вообще — не моргаем пустым окном
+                if not self.last_frames:
+                    time.sleep(0.1)
                     continue
 
-                self.processed_queue.task_done()
-                print(f"[Message] Sent cam {item.cam_id}")
-            except queue.Empty:
-                continue
+                # собираем список кадров для тайла
+                frames = []
+                for cam_id, frame in self.last_frames.items():
+                    # подгоняем размер
+                    frame = cv2.resize(frame, (640, 480))
+                    # добавляем подпись с camera_id
+                    cv2.putText(
+                        frame,
+                        str(cam_id),
+                        (10, 30),
+                        cv2.FONT_HERSHEY_SIMPLEX,
+                        1.0,
+                        (0, 255, 0),
+                        2,
+                    )
+                    frames.append(frame)
+
+                # формируем плитку
+                rows = (len(frames) + cols - 1) // cols
+                cell_h, cell_w = 480, 640
+                tile = np.zeros((cell_h * rows, cell_w * cols, 3), dtype=np.uint8)
+
+                for i, frame in enumerate(frames):
+                    row = i // cols
+                    col = i % cols
+                    tile[
+                    row * cell_h: (row + 1) * cell_h,
+                    col * cell_w: (col + 1) * cell_w,
+                    ] = frame
+
+                # отображаем тайл
+                cv2.imshow(window_name, tile)
+                key = cv2.waitKey(1) & 0xFF
+
+                if key == 27:  # ESC
+                    print("[Display] ESC pressed, stopping...")
+                    self.stop()
+                    break
+
             except Exception as e:
-                print(f"[Message] Error: {e}")
-                if item:
-                    self.processed_queue.task_done()
-                    time.sleep(1)
+                print(f"[Display] Error: {e}")
+                time.sleep(0.1)
 
-        self.broker.close_connection()
+        cv2.destroyAllWindows()
 
-    def _build_message(self, item: ProcessedData) -> dict:
 
-        cam = self.camera_config.get_camera_dict()[item.cam_id]
-
-        if cam.H is None:
-            raise ValueError(f"No homography for camera {item.cam_id}")
-
-        return {
-            "camera_id": item.cam_id,
-            "translated_points": [
-                HomographyUtils.cam2map(cam.H, x, y) for x, y in item.raw_pts
-            ],
-            "timestamp": item.timestamp,
-        }
 
     def start(self):
         if self.running:
@@ -213,11 +231,11 @@ class ThreadedPipeline:
         )
         self.process_thread.start()
 
-        # поток отправки
-        self.message_thread = threading.Thread(
-            target=self._message_worker, name="MessageThread", daemon=True
+        # поток вывода
+        self.display_thread = threading.Thread(
+            target=self._display_worker, name="DisplayThread", daemon=True
         )
-        self.message_thread.start()
+        self.display_thread.start()
 
     def stop(self):
         if not self.running:
@@ -232,7 +250,7 @@ class ThreadedPipeline:
             t.join(timeout=2.0)
         if self.process_thread:
             self.process_thread.join(timeout=2.0)
-        if self.message_thread:
-            self.message_thread.join(timeout=2.0)
+        if self.display_thread:
+            self.display_thread.join(timeout=2.0)
 
         print("Pipeline stopped")
