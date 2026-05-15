@@ -9,42 +9,60 @@ from datetime import datetime
 CAMERA_ID = 13
 WEBSOCKET_PORT = 8765
 
-# Относительные траектории (координаты 0-1, без привязки к конкретной зоне!)
-person1_trajectory_rel = [
-    [0.05, 0.05], [0.1, 0.08], [0.15, 0.1], [0.2, 0.12], [0.25, 0.15],
-    [0.3, 0.18], [0.35, 0.2], [0.4, 0.22], [0.45, 0.25], [0.5, 0.28],
+# НОРМАЛЬНЫЕ пиксельные координаты (0-640, 0-480) - как у друга
+person1_trajectory = [
+    [100, 100], [120, 110], [140, 120], [160, 130], [180, 140],
+    [200, 150], [220, 160], [240, 170], [260, 180], [280, 190],
+    [300, 200], [320, 210], [340, 220], [360, 230], [380, 240],
+    [400, 250], [420, 260], [440, 270], [460, 280], [480, 290],
+    [500, 300], [480, 310], [460, 320], [440, 330], [420, 340],
+    [400, 350], [380, 360], [360, 370], [340, 380], [320, 390],
+    [300, 400],
 ]
 
-person2_trajectory_rel = [
-    [0.7, 0.6], [0.65, 0.58], [0.6, 0.55], [0.55, 0.52], [0.5, 0.5],
-    [0.45, 0.48], [0.4, 0.45], [0.35, 0.42], [0.3, 0.4], [0.25, 0.38],
+person2_trajectory = [
+    [500, 100], [480, 110], [460, 120], [440, 130], [420, 140],
+    [400, 150], [380, 160], [360, 170], [340, 180], [320, 190],
+    [300, 200], [280, 210], [260, 220], [240, 230], [220, 240],
+    [200, 250], [180, 260], [160, 270], [140, 280], [120, 290],
+    [100, 300],
 ]
 
-person3_trajectory_rel = [
-    [0.3, 0.8], [0.32, 0.78], [0.35, 0.75], [0.38, 0.72], [0.4, 0.7],
-    [0.42, 0.68], [0.45, 0.65], [0.48, 0.62], [0.5, 0.6], [0.52, 0.58],
+person3_trajectory = [
+    [300, 80], [310, 90], [320, 100], [330, 110], [340, 120],
+    [350, 130], [360, 140], [370, 150], [380, 160], [390, 170],
+    [400, 180], [410, 190], [420, 200], [430, 210], [440, 220],
+    [450, 230], [440, 240], [430, 250], [420, 260], [410, 270],
+    [400, 280], [390, 290], [380, 300], [370, 310], [360, 320],
 ]
 
 async def send_detections(websocket):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Клиент подключился")
     print(f"Камера ID: {CAMERA_ID}")
-    print("Отправляем относительные координаты (0-1)")
+    print("Отправляем пиксельные координаты (0-640, 0-480) - как у друга")
+    
     index = 0
     
     try:
         while True:
-            p1 = person1_trajectory_rel[index % len(person1_trajectory_rel)]
-            p2 = person2_trajectory_rel[index % len(person2_trajectory_rel)]
-            p3 = person3_trajectory_rel[index % len(person3_trajectory_rel)]
+            p1 = person1_trajectory[index % len(person1_trajectory)]
+            p2 = person2_trajectory[index % len(person2_trajectory)]
+            p3 = person3_trajectory[index % len(person3_trajectory)]
+            
+            # Добавляем шум
+            p1 = [p1[0] + random.uniform(-5, 5), p1[1] + random.uniform(-5, 5)]
+            p2 = [p2[0] + random.uniform(-5, 5), p2[1] + random.uniform(-5, 5)]
+            p3 = [p3[0] + random.uniform(-5, 5), p3[1] + random.uniform(-5, 5)]
             
             message = {
                 'camera_id': CAMERA_ID,
-                'translated_points': [p1, p2, p3],  # Относительные координаты!
+                'translated_points': [p1, p2, p3],
                 'timestamp': time.time()
             }
             
             await websocket.send(json.dumps(message))
             print(f"📹 Камера {CAMERA_ID}: {len(message['translated_points'])} человек")
+            print(f"   Точки: {[f'({p[0]:.1f}, {p[1]:.1f})' for p in [p1, p2, p3]]}")
             
             index += 1
             await asyncio.sleep(0.5)
@@ -57,7 +75,7 @@ async def main():
         print("=" * 60)
         print(f"WebSocket сервер запущен на ws://localhost:{WEBSOCKET_PORT}")
         print(f"Камера ID: {CAMERA_ID}")
-        print("Формат: относительные координаты (0-1) внутри зоны видимости")
+        print("Формат: пиксельные координаты (0-640, 0-480)")
         print("=" * 60)
         await asyncio.Future()
 

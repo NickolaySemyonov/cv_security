@@ -21,6 +21,10 @@ interface Camera {
   visible_zone: { vertices: number[][] };
 }
 
+// Параметры кадра от сервиса детекции (пиксели)
+const FRAME_WIDTH = 640;
+const FRAME_HEIGHT = 480;
+
 let ws: WebSocket | null = null;
 let globalDetections: DetectionPoint[] = [];
 let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
@@ -47,6 +51,7 @@ async function loadCameraZone(cameraId: number): Promise<{ minX: number; maxX: n
         maxY: Math.max(...ys)
       };
       cameraZoneCache.set(cameraId, zone);
+      console.log(`✅ Загружена зона для камеры ${cameraId}:`, zone);
       return zone;
     }
   } catch (error) {
@@ -77,6 +82,7 @@ function notifySubscribers() {
 
 async function processDetection(message: DetectionMessage) {
   console.log(`📥 Камера ${message.camera_id}: ${message.translated_points.length} человек`);
+  console.log(`   Исходные пиксельные координаты:`, message.translated_points);
   
   // Загружаем зону видимости камеры
   const zone = await loadCameraZone(message.camera_id);
@@ -89,11 +95,19 @@ async function processDetection(message: DetectionMessage) {
   const now = Date.now() / 1000;
   const newPositions: Map<string, DetectionPoint> = new Map();
   
-  // Преобразуем каждую точку из относительных в абсолютные координаты
   message.translated_points.forEach((point, index) => {
-    const relX = point[0];
-    const relY = point[1];
+    // 1. Пиксельные координаты от сервиса детекции (0-640, 0-480)
+    const pixelX = point[0];
+    const pixelY = point[1];
+    
+    // 2. Нормализуем в диапазон 0-1
+    const relX = pixelX / FRAME_WIDTH;
+    const relY = pixelY / FRAME_HEIGHT;
+    
+    // 3. Преобразуем в абсолютные координаты на карте
     const absolute = transformRelativeToAbsolute(relX, relY, zone);
+    
+    console.log(`   Точка ${index}: пиксели (${pixelX.toFixed(2)}, ${pixelY.toFixed(2)}) -> нормализованные (${relX.toFixed(3)}, ${relY.toFixed(3)}) -> карта (${absolute.x.toFixed(2)}, ${absolute.y.toFixed(2)})`);
     
     const personId = index;
     const key = `${message.camera_id}_${personId}`;
@@ -113,12 +127,7 @@ async function processDetection(message: DetectionMessage) {
   // Преобразуем Map в массив для отображения
   globalDetections = Array.from(personPositions.values());
   
-  // Ограничиваем количество (на всякий случай)
-  if (globalDetections.length > 100) {
-    globalDetections = globalDetections.slice(-100);
-  }
-  
-  console.log(`📍 Преобразовано точек: ${globalDetections.length}`);
+  console.log(`📍 Всего точек для отображения: ${globalDetections.length}`);
   notifySubscribers();
   
   // Удаляем старые точки через 2 секунды (если человек пропал)
