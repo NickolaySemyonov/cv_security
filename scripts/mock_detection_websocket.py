@@ -6,44 +6,40 @@ import time
 import websockets
 from datetime import datetime
 
-CAMERA_ID = 12
+CAMERA_ID = 13
 WEBSOCKET_PORT = 8765
 
-# Траектории для разных людей
-person1_trajectory = [
-    [310, 60], [320, 65], [330, 70], [340, 75], [350, 80],
-    [360, 85], [370, 90], [380, 95], [390, 100], [400, 105],
+# Относительные траектории (координаты 0-1, без привязки к конкретной зоне!)
+person1_trajectory_rel = [
+    [0.05, 0.05], [0.1, 0.08], [0.15, 0.1], [0.2, 0.12], [0.25, 0.15],
+    [0.3, 0.18], [0.35, 0.2], [0.4, 0.22], [0.45, 0.25], [0.5, 0.28],
 ]
 
-person2_trajectory = [
-    [400, 150], [390, 145], [380, 140], [370, 135], [360, 130],
-    [350, 125], [340, 120], [330, 115], [320, 110], [310, 105],
+person2_trajectory_rel = [
+    [0.7, 0.6], [0.65, 0.58], [0.6, 0.55], [0.55, 0.52], [0.5, 0.5],
+    [0.45, 0.48], [0.4, 0.45], [0.35, 0.42], [0.3, 0.4], [0.25, 0.38],
 ]
 
-person3_trajectory = [
-    [350, 180], [355, 175], [360, 170], [365, 165], [370, 160],
-    [375, 155], [380, 150], [385, 145], [390, 140], [395, 135],
+person3_trajectory_rel = [
+    [0.3, 0.8], [0.32, 0.78], [0.35, 0.75], [0.38, 0.72], [0.4, 0.7],
+    [0.42, 0.68], [0.45, 0.65], [0.48, 0.62], [0.5, 0.6], [0.52, 0.58],
 ]
 
 async def send_detections(websocket):
     print(f"[{datetime.now().strftime('%H:%M:%S')}] Клиент подключился")
+    print(f"Камера ID: {CAMERA_ID}")
+    print("Отправляем относительные координаты (0-1)")
     index = 0
     
     try:
         while True:
-            # Берём точки для каждого человека
-            p1 = person1_trajectory[index % len(person1_trajectory)]
-            p2 = person2_trajectory[index % len(person2_trajectory)]
-            p3 = person3_trajectory[index % len(person3_trajectory)]
-            
-            # Добавляем шум
-            p1 = [p1[0] + random.uniform(-3, 3), p1[1] + random.uniform(-3, 3)]
-            p2 = [p2[0] + random.uniform(-3, 3), p2[1] + random.uniform(-3, 3)]
-            p3 = [p3[0] + random.uniform(-3, 3), p3[1] + random.uniform(-3, 3)]
+            p1 = person1_trajectory_rel[index % len(person1_trajectory_rel)]
+            p2 = person2_trajectory_rel[index % len(person2_trajectory_rel)]
+            p3 = person3_trajectory_rel[index % len(person3_trajectory_rel)]
             
             message = {
                 'camera_id': CAMERA_ID,
-                'translated_points': [p1, p2, p3],  # ТРИ человека!
+                'translated_points': [p1, p2, p3],  # Относительные координаты!
                 'timestamp': time.time()
             }
             
@@ -61,6 +57,7 @@ async def main():
         print("=" * 60)
         print(f"WebSocket сервер запущен на ws://localhost:{WEBSOCKET_PORT}")
         print(f"Камера ID: {CAMERA_ID}")
+        print("Формат: относительные координаты (0-1) внутри зоны видимости")
         print("=" * 60)
         await asyncio.Future()
 

@@ -48,32 +48,21 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
 
-  // Подключаемся к WebSocket для получения детекций
   const { detections, getDetectionsByFloor, registerFloorCameras, isConnected } = useCameraDetection();
 
-  // Находим камеру 12 и её этаж
-  const camera12 = cameras.find(c => c.id === 12);
-  const camera12FloorId = camera12?.floor_id;
+  // Получаем ВСЕ настроенные камеры на этом этаже
+  const configuredCamerasOnThisFloor = cameras.filter(c => c.is_configured === true && c.floor_id === currentFloor?.id);
+  const hasAnyConfiguredCamera = configuredCamerasOnThisFloor.length > 0;
   
-  // Получаем детекции только для этажа, на котором находится камера 12
-  const floorDetections = getDetectionsByFloor(camera12FloorId || 0);
+  // Получаем ID этажа (если есть настроенные камеры)
+  const cameraFloorId = hasAnyConfiguredCamera ? currentFloor?.id : null;
   
-  // Показываем детекции только если текущий этаж совпадает с этажом камеры
-  const shouldShowDetections = currentFloor?.id === camera12FloorId;
+  // Получаем детекции для этажа с камерами
+  const floorDetections = getDetectionsByFloor(cameraFloorId || 0);
+  
+  // Показываем детекции только если на текущем этаже есть настроенные камеры
+  const shouldShowDetections = hasAnyConfiguredCamera;
 
-  // Отладка
-  useEffect(() => {
-    console.log('=== ОТЛАДКА FLOOR PAGE ===');
-    console.log('Камера 12:', camera12);
-    console.log('Этаж камеры 12:', camera12FloorId);
-    console.log('Текущий этаж ID:', currentFloor?.id);
-    console.log('Номер текущего этажа:', currentFloor?.number);
-    console.log('Показывать детекции:', shouldShowDetections);
-    console.log('Детекций для этажа камеры:', floorDetections.length);
-    console.log('Всего детекций:', detections.length);
-  }, [camera12, camera12FloorId, currentFloor, shouldShowDetections, floorDetections, detections]);
-
-  // Получаем номер этажа из URL query параметра
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const floorParam = params.get('floor');
@@ -99,29 +88,21 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   }, [selectedFloorNumber, floors]);
 
-  // Загружаем камеры при изменении текущего этажа
   useEffect(() => {
     if (currentFloor?.id) {
       fetchCameras();
     }
   }, [currentFloor?.id]);
 
-  // Регистрируем камеры этажа в глобальном хранилище
   useEffect(() => {
     if (currentFloor?.id && cameras.length > 0) {
-      const configuredCameraIds = cameras.filter(c => c.is_configured === true).map(c => c.id);
-      console.log('=== РЕГИСТРАЦИЯ КАМЕР ===');
-      console.log('Этаж ID:', currentFloor.id);
-      console.log('Номер этажа:', currentFloor.number);
-      console.log('Настроенные камеры:', configuredCameraIds);
-      
-      if (configuredCameraIds.length > 0) {
-        registerFloorCameras(currentFloor.id, configuredCameraIds);
+      const allConfiguredCameraIds = cameras.filter(c => c.is_configured === true).map(c => c.id);
+      if (allConfiguredCameraIds.length > 0) {
+        registerFloorCameras(currentFloor.id, allConfiguredCameraIds);
       }
     }
   }, [currentFloor?.id, cameras, registerFloorCameras]);
 
-  // Проверяем, были ли обновлены камеры (при возврате со страницы добавления камер)
   useEffect(() => {
     const checkCamerasUpdate = () => {
       const camerasUpdated = sessionStorage.getItem('camerasUpdated');
@@ -172,7 +153,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     try {
       const response = await api.get(`/cameras/floor/${currentFloor.id}`);
       setCameras(response.data);
-      console.log('Загружены камеры для этажа', currentFloor.id, ':', response.data);
     } catch (error) {
       console.error('Ошибка загрузки камер:', error);
     }
@@ -199,13 +179,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     navigate('/objects');
   };
 
-  // Функция для отображения камер на SVG (только настроенные)
   const getSvgWithCameras = (svgContent: string): string => {
     if (!svgContent) return '';
     
     let modifiedSvg = svgContent;
-    
-    // Показываем только настроенные камеры
     const configuredCameras = cameras.filter(c => c.is_configured === true);
     
     configuredCameras.forEach((camera) => {
@@ -232,7 +209,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     return modifiedSvg;
   };
 
-  // Подготовка списка камер для отображения на оверлее детекций
   const camerasForOverlay = cameras
     .filter(c => c.is_configured === true)
     .map(c => ({
@@ -273,7 +249,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
       <Header user={user} onLogout={onLogout} title={decodedPlace} />
 
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow">
-        {/* Панель управления */}
         <div className="bg-white rounded-2xl shadow-md p-4 mb-6 flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
@@ -333,7 +308,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           </div>
         </div>
 
-        {/* Карта этажа с детекциями */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800">
@@ -359,19 +333,12 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             className="p-4 bg-gray-50 flex justify-center overflow-auto"
             style={{ minHeight: '500px' }}
           >
-            {shouldShowDetections ? (
-              <DetectionOverlay
-                svgContent={getSvgWithCameras(currentFloor.map)}
-                detections={floorDetections}
-                cameras={camerasForOverlay}
-                isConnected={isConnected}
-              />
-            ) : (
-              <div
-                dangerouslySetInnerHTML={{ __html: getSvgWithCameras(currentFloor.map) }}
-                className="shadow-inner bg-white rounded-lg"
-              />
-            )}
+            <DetectionOverlay
+              svgContent={getSvgWithCameras(currentFloor.map)}
+              detections={floorDetections}
+              cameras={camerasForOverlay}
+              isConnected={isConnected}
+            />
           </div>
         </div>
       </main>

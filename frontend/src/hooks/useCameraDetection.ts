@@ -1,12 +1,13 @@
 // frontend/src/hooks/useCameraDetection.ts
 import { useEffect, useState } from 'react';
+import api from '../config/axios';
 
 interface DetectionPoint {
   x: number;
   y: number;
   cameraId: number;
-  personId?: number;  // Добавляем ID человека для отслеживания
   timestamp: number;
+  personId?: number;
 }
 
 interface DetectionMessage {
@@ -15,12 +16,59 @@ interface DetectionMessage {
   timestamp: number;
 }
 
+interface Camera {
+  id: number;
+  visible_zone: { vertices: number[][] };
+}
+
 let ws: WebSocket | null = null;
 let globalDetections: DetectionPoint[] = [];
 let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let cameraToFloorMap: Map<number, number> = new Map();
+let cameraZoneCache: Map<number, { minX: number; maxX: number; minY: number; maxY: number } | null> = new Map();
 
-// Хранилище последних позиций людей по cameraId и personId
+// Загрузка зоны видимости камеры из БД
+async function loadCameraZone(cameraId: number): Promise<{ minX: number; maxX: number; minY: number; maxY: number } | null> {
+  if (cameraZoneCache.has(cameraId)) {
+    return cameraZoneCache.get(cameraId) || null;
+  }
+  
+  try {
+    const response = await api.get<Camera>(`/cameras/${cameraId}`);
+    const vertices = response.data.visible_zone?.vertices;
+    
+    if (vertices && vertices.length >= 4) {
+      const xs = vertices.map(p => p[0]);
+      const ys = vertices.map(p => p[1]);
+      const zone = {
+        minX: Math.min(...xs),
+        maxX: Math.max(...xs),
+        minY: Math.min(...ys),
+        maxY: Math.max(...ys)
+      };
+      cameraZoneCache.set(cameraId, zone);
+      return zone;
+    }
+  } catch (error) {
+    console.error(`Ошибка загрузки зоны для камеры ${cameraId}:`, error);
+  }
+  
+  cameraZoneCache.set(cameraId, null);
+  return null;
+}
+
+// Преобразование относительных координат (0-1) в абсолютные
+function transformRelativeToAbsolute(
+  relX: number,
+  relY: number,
+  zone: { minX: number; maxX: number; minY: number; maxY: number }
+): { x: number; y: number } {
+  const x = zone.minX + relX * (zone.maxX - zone.minX);
+  const y = zone.minY + relY * (zone.maxY - zone.minY);
+  return { x, y };
+}
+
+// Хранилище последних позиций людей
 let personPositions: Map<string, DetectionPoint> = new Map();
 
 function notifySubscribers() {
@@ -30,29 +78,50 @@ function notifySubscribers() {
 async function processDetection(message: DetectionMessage) {
   console.log(`📥 Камера ${message.camera_id}: ${message.translated_points.length} человек`);
   
-  const now = Date.now() / 1000;
-  const cameraId = message.camera_id;
+  // Загружаем зону видимости камеры
+  const zone = await loadCameraZone(message.camera_id);
   
-  // Обновляем позиции людей
+  if (!zone) {
+    console.warn(`⚠️ Не удалось загрузить зону для камеры ${message.camera_id}`);
+    return;
+  }
+  
+  const now = Date.now() / 1000;
+  const newPositions: Map<string, DetectionPoint> = new Map();
+  
+  // Преобразуем каждую точку из относительных в абсолютные координаты
   message.translated_points.forEach((point, index) => {
-    const personId = index; // или можно использовать уникальный ID из сообщения
-    const key = `${cameraId}_${personId}`;
+    const relX = point[0];
+    const relY = point[1];
+    const absolute = transformRelativeToAbsolute(relX, relY, zone);
     
-    const newPoint: DetectionPoint = {
-      x: point[0],
-      y: point[1],
-      cameraId: cameraId,
+    const personId = index;
+    const key = `${message.camera_id}_${personId}`;
+    
+    newPositions.set(key, {
+      x: absolute.x,
+      y: absolute.y,
+      cameraId: message.camera_id,
       personId: personId,
       timestamp: now
-    };
-    
-    personPositions.set(key, newPoint);
+    });
   });
+  
+  // Обновляем позиции
+  personPositions = newPositions;
   
   // Преобразуем Map в массив для отображения
   globalDetections = Array.from(personPositions.values());
   
-  // Удаляем старые точки (если человек пропал из кадра)
+  // Ограничиваем количество (на всякий случай)
+  if (globalDetections.length > 100) {
+    globalDetections = globalDetections.slice(-100);
+  }
+  
+  console.log(`📍 Преобразовано точек: ${globalDetections.length}`);
+  notifySubscribers();
+  
+  // Удаляем старые точки через 2 секунды (если человек пропал)
   setTimeout(() => {
     const currentTime = Date.now() / 1000;
     let changed = false;
@@ -69,8 +138,6 @@ async function processDetection(message: DetectionMessage) {
       notifySubscribers();
     }
   }, 2000);
-  
-  notifySubscribers();
 }
 
 function connectWebSocket() {
