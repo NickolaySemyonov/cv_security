@@ -1,18 +1,16 @@
-import os
-from dataclasses import dataclass, field
 import json
-import threading
 import queue
+import threading
 import time
+from dataclasses import dataclass, field
 
-from pika import ConnectionParameters, BlockingConnection, BasicProperties, PlainCredentials
 import cv2
 import numpy as np
 
 from src.Broker import Broker
 from src.CameraConfig import CameraConfig
-from src.config.settings import Settings
 from src.config.constants import CV_EXCHANGE_NAME
+from src.config.settings import Settings
 from src.modules.InferenceModule import InferenceModule
 from src.utils import HomographyUtils
 
