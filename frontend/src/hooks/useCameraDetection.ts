@@ -31,6 +31,13 @@ let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let cameraToFloorMap: Map<number, number> = new Map();
 let cameraZoneCache: Map<number, { minX: number; maxX: number; minY: number; maxY: number } | null> = new Map();
 
+// Хранилище последних позиций людей (сохраняется между сообщениями)
+let personPositions: Map<string, DetectionPoint> = new Map();
+
+// Для ограничения частоты обновления (необязательно)
+let lastRenderTime = 0;
+const RENDER_INTERVAL = 50; // 50ms = 20 FPS
+
 // Загрузка зоны видимости камеры из БД
 async function loadCameraZone(cameraId: number): Promise<{ minX: number; maxX: number; minY: number; maxY: number } | null> {
   if (cameraZoneCache.has(cameraId)) {
@@ -73,16 +80,17 @@ function transformRelativeToAbsolute(
   return { x, y };
 }
 
-// Хранилище последних позиций людей
-let personPositions: Map<string, DetectionPoint> = new Map();
-
 function notifySubscribers() {
-  subscribers.forEach(cb => cb([...globalDetections]));
+  const now = Date.now();
+  // Ограничиваем частоту обновления (опционально)
+  if (now - lastRenderTime >= RENDER_INTERVAL) {
+    lastRenderTime = now;
+    subscribers.forEach(cb => cb([...globalDetections]));
+  }
 }
 
 async function processDetection(message: DetectionMessage) {
   console.log(`📥 Камера ${message.camera_id}: ${message.translated_points.length} человек`);
-  console.log(`   Исходные пиксельные координаты:`, message.translated_points);
   
   // Загружаем зону видимости камеры
   const zone = await loadCameraZone(message.camera_id);
@@ -93,10 +101,10 @@ async function processDetection(message: DetectionMessage) {
   }
   
   const now = Date.now() / 1000;
-  const newPositions: Map<string, DetectionPoint> = new Map();
   
+  // ОБНОВЛЯЕМ позиции (не перезаписываем весь Map)
   message.translated_points.forEach((point, index) => {
-    // 1. Пиксельные координаты от сервиса детекции (0-640, 0-480)
+    // 1. Пиксельные координаты (0-640, 0-480)
     const pixelX = point[0];
     const pixelY = point[1];
     
@@ -107,12 +115,11 @@ async function processDetection(message: DetectionMessage) {
     // 3. Преобразуем в абсолютные координаты на карте
     const absolute = transformRelativeToAbsolute(relX, relY, zone);
     
-    console.log(`   Точка ${index}: пиксели (${pixelX.toFixed(2)}, ${pixelY.toFixed(2)}) -> нормализованные (${relX.toFixed(3)}, ${relY.toFixed(3)}) -> карта (${absolute.x.toFixed(2)}, ${absolute.y.toFixed(2)})`);
-    
     const personId = index;
     const key = `${message.camera_id}_${personId}`;
     
-    newPositions.set(key, {
+    // set() обновляет существующую точку или добавляет новую
+    personPositions.set(key, {
       x: absolute.x,
       y: absolute.y,
       cameraId: message.camera_id,
@@ -121,32 +128,18 @@ async function processDetection(message: DetectionMessage) {
     });
   });
   
-  // Обновляем позиции
-  personPositions = newPositions;
+  // Удаляем старые точки (кто не обновился за 2 секунды)
+  for (const [key, point] of personPositions.entries()) {
+    if (point.timestamp < now - 2) {
+      personPositions.delete(key);
+    }
+  }
   
   // Преобразуем Map в массив для отображения
   globalDetections = Array.from(personPositions.values());
   
-  console.log(`📍 Всего точек для отображения: ${globalDetections.length}`);
+  console.log(`📍 Всего активных точек: ${globalDetections.length}`);
   notifySubscribers();
-  
-  // Удаляем старые точки через 2 секунды (если человек пропал)
-  setTimeout(() => {
-    const currentTime = Date.now() / 1000;
-    let changed = false;
-    
-    for (const [key, point] of personPositions.entries()) {
-      if (point.timestamp < currentTime - 2) {
-        personPositions.delete(key);
-        changed = true;
-      }
-    }
-    
-    if (changed) {
-      globalDetections = Array.from(personPositions.values());
-      notifySubscribers();
-    }
-  }, 2000);
 }
 
 function connectWebSocket() {
