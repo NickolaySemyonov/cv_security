@@ -6,10 +6,9 @@ import time
 import websockets
 from datetime import datetime
 
-CAMERA_ID = 13
+CAMERA_ID = 14
 WEBSOCKET_PORT = 8765
 
-# НОРМАЛЬНЫЕ пиксельные координаты (0-640, 0-480) - как у друга
 person1_trajectory = [
     [100, 100], [120, 110], [140, 120], [160, 130], [180, 140],
     [200, 150], [220, 160], [240, 170], [260, 180], [280, 190],
@@ -49,7 +48,6 @@ async def send_detections(websocket):
             p2 = person2_trajectory[index % len(person2_trajectory)]
             p3 = person3_trajectory[index % len(person3_trajectory)]
             
-            # Добавляем шум
             p1 = [p1[0] + random.uniform(-5, 5), p1[1] + random.uniform(-5, 5)]
             p2 = [p2[0] + random.uniform(-5, 5), p2[1] + random.uniform(-5, 5)]
             p3 = [p3[0] + random.uniform(-5, 5), p3[1] + random.uniform(-5, 5)]

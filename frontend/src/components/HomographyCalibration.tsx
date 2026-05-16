@@ -7,6 +7,12 @@ interface Point {
   y: number;
 }
 
+interface VideoFile {
+  name: string;
+  url: string;
+  size_mb: number;
+}
+
 interface HomographyCalibrationProps {
   cameraId: number;
   cameraZone: number[][];
@@ -28,29 +34,49 @@ const HomographyCalibration = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const mapContainerRef = useRef<HTMLDivElement>(null);
   
-  const [step, setStep] = useState<'video' | 'map'>('video');
+  const [step, setStep] = useState<'select' | 'video' | 'map'>('select');
+  const [videos, setVideos] = useState<VideoFile[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [videoPoints, setVideoPoints] = useState<Point[]>([]);
   const [mapPoints, setMapPoints] = useState<Point[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [mapSvgElement, setMapSvgElement] = useState<SVGSVGElement | null>(null);
+  const [loadingVideos, setLoadingVideos] = useState(true);
 
-  // Запуск камеры
+  // Загрузка списка видео
   useEffect(() => {
-    if (step === 'video') {
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => {
-          if (videoRef.current) videoRef.current.srcObject = stream;
-        })
-        .catch(() => setError('Не удалось получить доступ к камере'));
+    if (step === 'select') {
+      fetchVideos();
     }
-    
-    return () => {
-      if (videoRef.current?.srcObject) {
-        (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
-      }
-    };
   }, [step]);
+
+  const fetchVideos = async () => {
+    try {
+      setLoadingVideos(true);
+      const response = await api.get('/videos/list');
+      setVideos(response.data.videos || []);
+    } catch (error) {
+      console.error('Ошибка загрузки видео:', error);
+      setError('Не удалось загрузить список видео');
+    } finally {
+      setLoadingVideos(false);
+    }
+  };
+
+  const selectVideo = (videoUrl: string) => {
+    setSelectedVideo(videoUrl);
+    setStep('video');
+  };
+
+  // Запуск видео
+  useEffect(() => {
+    if (step === 'video' && videoRef.current && selectedVideo) {
+      videoRef.current.src = `http://localhost:8000${selectedVideo}`;
+      videoRef.current.load();
+      videoRef.current.play().catch(e => console.log('Автовоспроизведение заблокировано', e));
+    }
+  }, [step, selectedVideo]);
 
   // Загрузка SVG карты
   useEffect(() => {
@@ -141,12 +167,10 @@ const HomographyCalibration = ({
     const x = (e.clientX - rect.left) * scaleX + viewBoxX;
     const y = (e.clientY - rect.top) * scaleY + viewBoxY;
     
-    // Проверяем, что клик внутри зоны видимости
-    if (!isPointInZone(x, y, cameraZone)) {
-      return null;
+    if (isPointInZone(x, y, cameraZone)) {
+      return { x, y };
     }
-    
-    return { x, y };
+    return null;
   };
 
   const isPointInZone = (x: number, y: number, zone: number[][]): boolean => {
@@ -229,6 +253,9 @@ const HomographyCalibration = ({
   const handlePrevStep = () => {
     if (step === 'map') {
       setStep('video');
+    } else if (step === 'video') {
+      setStep('select');
+      setVideoPoints([]);
     }
   };
 
@@ -270,6 +297,7 @@ const HomographyCalibration = ({
     try {
       await api.patch(`/cameras/${cameraId}/homography`, {
         points_of_homography: homographyData,
+        video_stream: selectedVideo,
         is_configured: true
       });
       onSave();
@@ -280,49 +308,73 @@ const HomographyCalibration = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-        {/* Прогресс-бар */}
-        <div className="mb-4">
-          <div className="flex justify-between mb-2">
-            <span className={`text-sm font-medium ${step === 'video' ? 'text-blue-600' : 'text-gray-400'}`}>
-              Шаг 1: Отметка точек на видео
-            </span>
-            <span className={`text-sm font-medium ${step === 'map' ? 'text-blue-600' : 'text-gray-400'}`}>
-              Шаг 2: Отметка точек на карте
-            </span>
-          </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: step === 'video' ? '50%' : '100%' }}
-            />
+  // Рендер выбора видео
+  if (step === 'select') {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+          <h2 className="text-2xl font-bold mb-2">Калибровка камеры {cameraId}</h2>
+          <p className="text-gray-600 mb-6">Выберите видеофайл для калибровки</p>
+          
+          {loadingVideos ? (
+            <div className="text-center py-8 text-gray-500">Загрузка видео...</div>
+          ) : videos.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <div className="text-4xl mb-2">📁</div>
+              <p>Нет видео файлов в папке <code className="bg-gray-100 px-2 py-1 rounded">storage/videos/</code></p>
+              <p className="text-sm mt-2">Поместите видеофайлы (.mp4, .avi, .mov) в эту папку</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+              {videos.map((video) => (
+                <div
+                  key={video.name}
+                  onClick={() => selectVideo(video.url)}
+                  className="border rounded-xl p-4 cursor-pointer hover:border-blue-500 hover:shadow-lg transition-all group"
+                >
+                  <div className="text-5xl mb-3 group-hover:scale-110 transition-transform">🎥</div>
+                  <div className="font-medium truncate">{video.name}</div>
+                  <div className="text-xs text-gray-500 mt-1">{video.size_mb} MB</div>
+                </div>
+              ))}
+            </div>
+          )}
+          
+          <div className="flex justify-end gap-2 mt-6">
+            <button onClick={onCancel} className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600">
+              Отмена
+            </button>
           </div>
         </div>
+      </div>
+    );
+  }
 
-        <h2 className="text-xl font-bold mb-2">
-          {step === 'video' ? 'Калибровка гомографии - Видеопоток' : 'Калибровка гомографии - Карта'}
-        </h2>
-        
-        <p className="text-gray-600 mb-4">
-          {step === 'video' ? (
-            videoPoints.length < 4 
-              ? `📍 Отметьте ${4 - videoPoints.length} точек на видео (углы зоны видимости)`
-              : '✅ Все 4 точки отмечены! Нажмите "Далее"'
-          ) : (
-            mapPoints.length < 4 
-              ? `📍 Отметьте ${4 - mapPoints.length} точек на карте (внутри синей зоны)`
-              : '✅ Все 4 точки отмечены! Нажмите "Сохранить"'
-          )}
-        </p>
-        
-        {/* Шаг 1: Видео */}
-        {step === 'video' && (
+  // Шаг 1: Видео
+  if (step === 'video') {
+    return (
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-bold">Калибровка гомографии - Шаг 1/2</h2>
+            <div className="flex gap-2">
+              <button onClick={() => setStep('select')} className="text-gray-500 hover:text-gray-700">
+                ← Выбрать другое видео
+              </button>
+            </div>
+          </div>
+          
+          <p className="text-gray-600 mb-4">
+            {videoPoints.length < 4 
+              ? `📍 Отметьте ${4 - videoPoints.length} точки на видео (углы зоны видимости)`
+              : '✅ Все 4 точки отмечены! Нажмите "Далее"'}
+          </p>
+          
           <div className="relative bg-black rounded-lg overflow-hidden">
             <video
               ref={videoRef}
               autoPlay
+              loop
               playsInline
               className="w-full h-auto cursor-crosshair"
               onClick={handleVideoClick}
@@ -333,91 +385,102 @@ const HomographyCalibration = ({
               className="absolute top-0 left-0 w-full h-full pointer-events-none"
             />
           </div>
-        )}
+          
+          <div className="flex gap-2 mt-4">
+            {[0, 1, 2, 3].map(i => (
+              <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                videoPoints[i] ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-500'
+              }`}>
+                {i + 1}
+              </div>
+            ))}
+          </div>
+          
+          {videoPoints.length > 0 && (
+            <div className="flex gap-2 mt-4">
+              <button onClick={undoLastPoint} className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm">
+                ↩ Отменить последнюю
+              </button>
+              <button onClick={resetAllPoints} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">
+                🗑 Сбросить всё
+              </button>
+            </div>
+          )}
+          
+          {error && <div className="mt-4 p-2 bg-red-100 text-red-700 rounded-lg text-sm">{error}</div>}
+          
+          <div className="flex justify-between mt-6">
+            <button onClick={handlePrevStep} className="px-4 py-2 bg-gray-500 text-white rounded-lg">
+              Назад
+            </button>
+            <button 
+              onClick={handleNextStep} 
+              disabled={videoPoints.length !== 4} 
+              className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50"
+            >
+              Далее →
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Шаг 2: Карта
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">
+        <h2 className="text-xl font-bold mb-2">Калибровка гомографии - Шаг 2/2</h2>
+        <p className="text-gray-600 mb-4">
+          {mapPoints.length < 4 
+            ? `📍 Отметьте ${4 - mapPoints.length} точек на карте (внутри синей зоны)`
+            : '✅ Все 4 точки отмечены! Нажмите "Сохранить"'}
+        </p>
         
-        {/* Шаг 2: Карта */}
-        {step === 'map' && (
-          <div 
-            ref={mapContainerRef}
-            className="relative bg-gray-100 rounded-lg overflow-auto"
-            style={{ maxHeight: '500px', minHeight: '400px' }}
-            onClick={handleMapClick}
-          />
-        )}
+        <div className="relative bg-gray-100 rounded-lg overflow-auto" style={{ maxHeight: '500px', minHeight: '400px' }}>
+          <div ref={mapContainerRef} onClick={handleMapClick} />
+        </div>
         
-        {/* Индикатор прогресса */}
         <div className="flex gap-2 mt-4">
           {[0, 1, 2, 3].map(i => (
-            <div 
-              key={i} 
-              className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm
-                ${step === 'video' 
-                  ? (videoPoints[i] ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-500')
-                  : (mapPoints[i] ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-500')
-                }
-              `}
-            >
+            <div key={i} className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+              mapPoints[i] ? 'bg-green-500 text-white' : 'bg-gray-300 text-gray-500'
+            }`}>
               {i + 1}
             </div>
           ))}
         </div>
         
-        {/* Кнопки управления */}
-        {((step === 'video' && videoPoints.length > 0) || (step === 'map' && mapPoints.length > 0)) && (
+        {mapPoints.length > 0 && (
           <div className="flex gap-2 mt-4">
-            <button 
-              onClick={undoLastPoint} 
-              className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600"
-            >
+            <button onClick={undoLastPoint} className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm">
               ↩ Отменить последнюю
             </button>
-            <button 
-              onClick={resetAllPoints} 
-              className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600"
-            >
+            <button onClick={resetAllPoints} className="px-3 py-1 bg-red-500 text-white rounded-lg text-sm">
               🗑 Сбросить всё
             </button>
           </div>
         )}
         
-        {error && (
-          <div className="mt-4 p-2 bg-red-100 text-red-700 rounded-lg text-sm">
-            {error}
-          </div>
-        )}
+        {error && <div className="mt-4 p-2 bg-red-100 text-red-700 rounded-lg text-sm">{error}</div>}
         
-        {/* Кнопки навигации */}
-        <div className="flex justify-end gap-2 mt-6">
-          <button 
-            onClick={onCancel} 
-            className="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600"
-            disabled={isLoading}
-          >
-            Отмена
+        <div className="flex justify-between mt-6">
+          <button onClick={handlePrevStep} className="px-4 py-2 bg-gray-500 text-white rounded-lg">
+            Назад
           </button>
-          {step === 'video' ? (
-            <button 
-              onClick={handleNextStep} 
-              disabled={videoPoints.length !== 4} 
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg disabled:opacity-50 hover:bg-blue-600"
-            >
-              Далее →
-            </button>
-          ) : (
-            <button 
-              onClick={handleSave} 
-              disabled={mapPoints.length !== 4 || isLoading} 
-              className="px-4 py-2 bg-green-500 text-white rounded-lg disabled:opacity-50 hover:bg-green-600"
-            >
-              {isLoading ? 'Сохранение...' : 'Сохранить'}
-            </button>
-          )}
+          <button 
+            onClick={handleSave} 
+            disabled={mapPoints.length !== 4 || isLoading} 
+            className="px-4 py-2 bg-green-500 text-white rounded-lg disabled:opacity-50"
+          >
+            {isLoading ? 'Сохранение...' : 'Сохранить'}
+          </button>
         </div>
         
         <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
           💡 Инструкция:<br />
           <strong>Шаг 1:</strong> Отметьте 4 точки на видео в порядке: левый верхний → правый верхний → правый нижний → левый нижний<br />
-          <strong>Шаг 2:</strong> Отметьте соответствующие точки на карте <strong>ТОЛЬКО внутри синей зоны видимости</strong> в том же порядке
+          <strong>Шаг 2:</strong> Отметьте соответствующие точки на карте (внутри синей зоны видимости) в том же порядке
         </div>
       </div>
     </div>

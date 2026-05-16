@@ -60,7 +60,7 @@ async def create_camera(
     return camera
 
 
-@router.patch("/{camera_id}", response_model=CameraResponse)
+@router.patch("/{camera_id}")
 async def update_camera(
     camera_id: int,
     camera_data: CameraUpdate,

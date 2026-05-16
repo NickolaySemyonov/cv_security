@@ -47,6 +47,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [error, setError] = useState('');
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [updateTrigger, setUpdateTrigger] = useState(0); // Триггер для обновления
 
   const { detections, getDetectionsByFloor, registerFloorCameras, isConnected } = useCameraDetection();
 
@@ -88,11 +89,12 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   }, [selectedFloorNumber, floors]);
 
+  // Загружаем камеры при изменении текущего этажа или триггера
   useEffect(() => {
     if (currentFloor?.id) {
       fetchCameras();
     }
-  }, [currentFloor?.id]);
+  }, [currentFloor?.id, updateTrigger]);
 
   useEffect(() => {
     if (currentFloor?.id && cameras.length > 0) {
@@ -103,20 +105,27 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   }, [currentFloor?.id, cameras, registerFloorCameras]);
 
+  // Проверяем, были ли обновлены камеры (при возврате со страницы добавления камер)
   useEffect(() => {
     const checkCamerasUpdate = () => {
       const camerasUpdated = sessionStorage.getItem('camerasUpdated');
-      if (camerasUpdated && currentFloor?.id) {
+      if (camerasUpdated) {
         sessionStorage.removeItem('camerasUpdated');
-        fetchCameras();
+        // Принудительно обновляем камеры и детекции
+        if (currentFloor?.id) {
+          fetchCameras();
+          setUpdateTrigger(prev => prev + 1);
+        }
       }
     };
     
     checkCamerasUpdate();
     
+    // Обновляем при фокусе окна (возврат на вкладку)
     const handleFocus = () => {
       if (currentFloor?.id) {
         fetchCameras();
+        setUpdateTrigger(prev => prev + 1);
       }
     };
     
@@ -153,6 +162,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     try {
       const response = await api.get(`/cameras/floor/${currentFloor.id}`);
       setCameras(response.data);
+      console.log('Загружены камеры для этажа', currentFloor.id, ':', response.data.length);
     } catch (error) {
       console.error('Ошибка загрузки камер:', error);
     }

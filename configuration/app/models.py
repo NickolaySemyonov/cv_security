@@ -85,6 +85,7 @@ class Camera(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text('true'))
     points_of_homography: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    video_stream: Mapped[str | None] = mapped_column(Text, nullable=True) 
     area_id: Mapped[int | None] = mapped_column(Integer, ForeignKey('area.id', ondelete='SET NULL'), nullable=True)
     is_configured: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 

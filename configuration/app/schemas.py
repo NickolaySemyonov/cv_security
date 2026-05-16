@@ -63,6 +63,7 @@ class CameraBase(BaseModel):
     is_configured: bool = False  
     points_of_homography: Optional[Dict[str, Any]] = None
     floor_id: int
+    video_stream: Optional[str] = None
     area_id: Optional[int] = None 
 
 class CameraCreate(CameraBase):
@@ -73,6 +74,7 @@ class CameraUpdate(BaseModel):
     visible_zone: Optional[Dict[str, Any]] = None
     is_active: Optional[bool] = None
     points_of_homography: Optional[Dict[str, Any]] = None
+    video_stream: Optional[str] = None
     area_id: Optional[int] = None  
 
 class CameraResponse(CameraBase):
