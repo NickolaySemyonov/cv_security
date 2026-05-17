@@ -22,7 +22,6 @@ interface Camera {
   visible_zone: { vertices: number[][] };
 }
 
-// Параметры кадра от сервиса детекции (пиксели)
 const FRAME_WIDTH = 640;
 const FRAME_HEIGHT = 480;
 
@@ -31,23 +30,10 @@ let globalDetections: DetectionPoint[] = [];
 let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let cameraToFloorMap: Map<number, number> = new Map();
 let cameraInfoCache: Map<number, { zone: { minX: number; maxX: number; minY: number; maxY: number }; position: { x: number; y: number } } | null> = new Map();
-
-// Хранилище последних позиций людей (сохраняется между сообщениями)
 let personPositions: Map<string, DetectionPoint> = new Map();
-
-// Для ограничения частоты обновления
 let lastRenderTime = 0;
-const RENDER_INTERVAL = 50; // 50ms = 20 FPS
+const RENDER_INTERVAL = 50;
 
-// Очистка всех детекций (при смене этажа)
-export function clearAllDetections() {
-  personPositions.clear();
-  globalDetections = [];
-  notifySubscribers();
-  console.log('🧹 Все детекции очищены');
-}
-
-// Загрузка информации о камере (зона + позиция)
 async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number; maxX: number; minY: number; maxY: number }; position: { x: number; y: number } } | null> {
   if (cameraInfoCache.has(cameraId)) {
     return cameraInfoCache.get(cameraId) || null;
@@ -69,7 +55,6 @@ async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number;
       };
       const info = { zone, position };
       cameraInfoCache.set(cameraId, info);
-      console.log(`✅ Загружена информация для камеры ${cameraId}`);
       return info;
     }
   } catch (error) {
@@ -80,7 +65,6 @@ async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number;
   return null;
 }
 
-// Преобразование точки с учётом позиции камеры на периметре зоны
 function transformPointByCameraPosition(
   relX: number,
   relY: number,
@@ -89,7 +73,6 @@ function transformPointByCameraPosition(
 ): { x: number; y: number } {
   const { minX, maxX, minY, maxY } = zoneBounds;
   
-  // 1. Находим, на какой стороне периметра находится камера
   const distToTop = Math.abs(cameraPos.y - minY);
   const distToBottom = Math.abs(cameraPos.y - maxY);
   const distToLeft = Math.abs(cameraPos.x - minX);
@@ -119,7 +102,6 @@ function transformPointByCameraPosition(
     isHorizontal = false;
   }
   
-  // 2. Находим противоположную сторону
   let oppositeStart: { x: number; y: number };
   let oppositeEnd: { x: number; y: number };
   
@@ -131,7 +113,6 @@ function transformPointByCameraPosition(
     oppositeEnd = { x: maxX, y: minY };
   }
   
-  // 3. Интерполируем точку
   const t1 = isHorizontal ? relX : relY;
   const cameraEdgePoint = {
     x: edgeStart.x + t1 * (edgeEnd.x - edgeStart.x),
@@ -161,13 +142,8 @@ function notifySubscribers() {
 }
 
 async function processDetection(message: DetectionMessage) {
-  console.log(`📥 Камера ${message.camera_id}: ${message.translated_points.length} человек`);
-  
   const cameraInfo = await loadCameraInfo(message.camera_id);
-  if (!cameraInfo) {
-    console.warn(`⚠️ Не удалось загрузить информацию для камеры ${message.camera_id}`);
-    return;
-  }
+  if (!cameraInfo) return;
   
   const now = Date.now() / 1000;
   
@@ -207,7 +183,6 @@ async function processDetection(message: DetectionMessage) {
 function connectWebSocket() {
   if (ws && ws.readyState === WebSocket.OPEN) return;
   
-  console.log('🔌 Подключение к WebSocket...');
   ws = new WebSocket('ws://localhost:8765');
   
   ws.onopen = () => {
@@ -224,7 +199,6 @@ function connectWebSocket() {
   };
   
   ws.onclose = () => {
-    console.log('❌ WebSocket отключен');
     ws = null;
     setTimeout(connectWebSocket, 3000);
   };
@@ -238,13 +212,24 @@ export function useCameraDetection() {
   const [detections, setDetections] = useState<DetectionPoint[]>([]);
   const [isConnected, setIsConnected] = useState(false);
 
+  // Регистрация камер на этаже (перезаписываем старые)
   const registerFloorCameras = (floorId: number, cameraIds: number[]) => {
+    // Очищаем старые регистрации для этого этажа
+    for (const [camId, camFloor] of cameraToFloorMap.entries()) {
+      if (camFloor === floorId) {
+        cameraToFloorMap.delete(camId);
+      }
+    }
+    
     cameraIds.forEach(cameraId => {
       cameraToFloorMap.set(cameraId, floorId);
     });
+    
     console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
+    console.log(`📌 Текущая карта камер:`, Array.from(cameraToFloorMap.entries()));
   };
 
+  // Получение детекций для конкретного этажа
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
     const filtered = detections.filter(d => {
       const cameraFloor = cameraToFloorMap.get(d.cameraId);
@@ -253,12 +238,12 @@ export function useCameraDetection() {
     return filtered;
   };
 
-  // Функция для очистки детекций (вызывается при смене этажа)
+  // Очистка всех детекций (при смене этажа)
   const clearDetections = () => {
     personPositions.clear();
     globalDetections = [];
     notifySubscribers();
-    console.log('🧹 Детекции очищены при смене этажа');
+    console.log('🧹 Детекции очищены');
   };
 
   useEffect(() => {
@@ -287,7 +272,7 @@ export function useCameraDetection() {
     detections, 
     getDetectionsByFloor,
     registerFloorCameras,
-    clearDetections,  // ← экспортируем функцию очистки
+    clearDetections,
     isConnected 
   };
 }

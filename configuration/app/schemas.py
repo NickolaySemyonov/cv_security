@@ -42,6 +42,14 @@ class FloorResponse(BaseModel):
     class Config:
         from_attributes = True
 
+class FloorUpdate(BaseModel):
+    number: Optional[int] = Field(None, ge=0, description="Номер этажа")
+    place: Optional[str] = Field(None, min_length=1, max_length=100, description="Название объекта")
+    map: Optional[str] = Field(None, description="SVG карта этажа")
+    
+    class Config:
+        from_attributes = True
+
 class CalibrationData(BaseModel):
     calibration_points: List[Dict[str, float]]
     calibration_distance: float

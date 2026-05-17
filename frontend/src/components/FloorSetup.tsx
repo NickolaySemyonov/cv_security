@@ -1,9 +1,10 @@
-// frontend/src/components/FloorSetup.tsx
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, ChangeEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../config/axios';
 import Header from './Header';
 import Footer from './Footer';
+import FileInput from './FileInput';
+import SvgPreview from './SvgPreview';
 
 interface Floor {
   id: number;
@@ -29,15 +30,25 @@ interface Point {
   y: number;
 }
 
+interface SelectedFile {
+  name: string;
+  content: string;
+}
+
 const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const svgContainerRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(0);
+  
+  // Состояния для загрузки карты
+  const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
+  const [isUploadingMap, setIsUploadingMap] = useState(false);
   
   // Состояния калибровки
   const [isCalibrated, setIsCalibrated] = useState(false);
@@ -46,6 +57,11 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   const [isSelectingPoints, setIsSelectingPoints] = useState(false);
   const [hoverPoint, setHoverPoint] = useState<Point | null>(null);
   const [savedCalibration, setSavedCalibration] = useState<{ points: Point[]; distance: number } | null>(null);
+  
+  // Состояния для камер
+  const [hasCameras, setHasCameras] = useState(false);
+  const [camerasCount, setCamerasCount] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const stepNames = [
     'Загрузка карты',
@@ -56,6 +72,7 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     if (id) {
       fetchFloor();
       loadSavedCalibration();
+      fetchCamerasCount();
     } else {
       setError('ID этажа не указан');
       setLoading(false);
@@ -79,6 +96,17 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     }
   };
 
+  const fetchCamerasCount = async () => {
+    try {
+      const response = await api.get(`/cameras/floor/${id}`);
+      const count = response.data.length;
+      setCamerasCount(count);
+      setHasCameras(count > 0);
+    } catch (error) {
+      console.error('Ошибка загрузки камер:', error);
+    }
+  };
+
   const loadSavedCalibration = async () => {
     try {
       const response = await api.get(`/floors/${id}/settings`);
@@ -90,6 +118,78 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
       }
     } catch (error) {
       console.error('Ошибка загрузки сохранённой калибровки:', error);
+    }
+  };
+
+  // Загрузка новой карты
+  const handleFileSelect = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.name.endsWith('.svg')) {
+      setError('Пожалуйста, выберите SVG файл');
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.onload = (e: ProgressEvent<FileReader>) => {
+      const svgContent = e.target?.result as string;
+      setSelectedFile({
+        name: file.name,
+        content: svgContent
+      });
+      setError('');
+    };
+    reader.onerror = () => {
+      setError('Ошибка при чтении файла');
+    };
+    reader.readAsText(file);
+  };
+
+  // Сохранение карты на сервер (с удалением камер)
+  const saveMap = async () => {
+    if (!selectedFile) return;
+    
+    // Предупреждение о камерах
+    if (hasCameras) {
+      const confirm = window.confirm(
+        `⚠️ ВНИМАНИЕ!\n\nНа этаже есть ${camerasCount} камер.\n\nПри замене карты ВСЕ КАМЕРЫ БУДУТ УДАЛЕНЫ, так как их координаты станут недействительными.\n\nКалибровка также будет сброшена.\n\nПродолжить?`
+      );
+      if (!confirm) return;
+    }
+    
+    setIsUploadingMap(true);
+    try {
+      // Сначала удаляем все камеры этажа
+      if (hasCameras) {
+        const camerasResponse = await api.get(`/cameras/floor/${id}`);
+        for (const camera of camerasResponse.data) {
+          await api.delete(`/cameras/${camera.id}`);
+        }
+      }
+      
+      // Обновляем карту
+      await api.patch(`/floors/${id}`, {
+        map: selectedFile.content
+      });
+      
+      // Сбрасываем калибровку
+      await api.delete(`/floors/${id}/calibrate`);
+      
+      await fetchFloor();
+      await fetchCamerasCount();
+      await loadSavedCalibration();
+      
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      
+      alert('Карта успешно загружена! Камеры и калибровка сброшены.');
+      
+    } catch (error) {
+      console.error('Ошибка сохранения карты:', error);
+      alert('Ошибка при сохранении карты');
+    } finally {
+      setIsUploadingMap(false);
     }
   };
 
@@ -139,9 +239,11 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     setHoverPoint({ x, y });
   };
 
-  // Сохранение калибровки
-  const saveCalibration = async () => {
+  // Обновление калибровки (PATCH)
+  const updateCalibration = async () => {
     if (!calibrationDistance || calibrationPoints.length !== 2) return;
+    
+    setIsSubmitting(true);
     
     try {
       await api.patch(`/floors/${id}/calibrate`, {
@@ -149,13 +251,55 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
         calibration_distance: calibrationDistance,
         is_calibrated: true
       });
+      
       setIsCalibrated(true);
       setSavedCalibration({
         points: calibrationPoints,
         distance: calibrationDistance
       });
-    } catch (error) {
+      
+      // Очищаем форму после сохранения
+      setCalibrationPoints([]);
+      setCalibrationDistance(null);
+      
+      alert('Калибровка успешно сохранена!');
+      await fetchFloor();
+      await fetchCamerasCount();
+      
+    } catch (error: any) {
       console.error('Ошибка сохранения калибровки:', error);
+      alert(error.response?.data?.detail || 'Ошибка при сохранении калибровки');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Сброс калибровки (DELETE) - только если нет камер
+  const resetCalibration = async () => {
+    if (hasCameras) {
+      alert(`❌ Нельзя сбросить калибровку!\n\nНа этаже есть ${camerasCount} камер.\n\nСначала удалите все камеры или обновите калибровку.`);
+      return;
+    }
+    
+    if (!window.confirm('Вы действительно хотите сбросить калибровку? Все данные калибровки будут удалены.')) {
+      return;
+    }
+    
+    try {
+      await api.delete(`/floors/${id}/calibrate`);
+      setIsCalibrated(false);
+      setSavedCalibration(null);
+      setCalibrationPoints([]);
+      setCalibrationDistance(null);
+      setIsSelectingPoints(false);
+      
+      alert('Калибровка сброшена');
+      await fetchFloor();
+      await fetchCamerasCount();
+      
+    } catch (error: any) {
+      console.error('Ошибка сброса:', error);
+      alert(error.response?.data?.detail || 'Ошибка при сбросе калибровки');
     }
   };
 
@@ -166,20 +310,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     setIsSelectingPoints(false);
   };
 
-  // Полная отмена калибровки (удаление сохранённой)
-  const cancelFullCalibration = async () => {
-    try {
-      await api.delete(`/floors/${id}/calibrate`);
-      setIsCalibrated(false);
-      setSavedCalibration(null);
-      setCalibrationPoints([]);
-      setCalibrationDistance(null);
-      setIsSelectingPoints(false);
-    } catch (error) {
-      console.error('Ошибка отмены калибровки:', error);
-    }
-  };
-
   // Сброс только второго шага (очистка формы)
   const resetSecondStep = () => {
     setCalibrationPoints([]);
@@ -187,9 +317,8 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     setIsSelectingPoints(false);
   };
 
-  const handleCompleteSetup = async () => {
-    await saveCalibration();
-    // Перенаправляем на страницу этажа с конкретным этажом
+  // Завершение - переход на страницу этажа
+  const handleComplete = () => {
     if (floor?.place && floor?.number) {
       navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`);
     } else {
@@ -199,26 +328,26 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   };
 
   const handleBack = () => {
-    // Выход на страницу этажа (текущий этаж)
-    if (floor?.place && floor?.number) {
-      navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`);
+    if (currentStep === 0) {
+      // На первом шаге - выход на страницу этажа
+      if (floor?.place && floor?.number) {
+        navigate(`/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`);
+      } else {
+        navigate('/objects');
+      }
     } else {
-      navigate('/objects');
+      setCurrentStep(0);
     }
   };
 
   const handleNextStep = () => {
-    if (currentStep < stepNames.length - 1) {
-      setCurrentStep(currentStep + 1);
-    }
-  };
-
-  const handlePrevStep = () => {
+    // Проверяем, есть ли карта перед переходом на второй шаг
     if (currentStep === 0) {
-      // На первом шаге выходим на страницу этажа
-      handleBack();
-    } else {
-      setCurrentStep(currentStep - 1);
+      if (!hasMap) {
+        alert('Сначала загрузите карту этажа!');
+        return;
+      }
+      setCurrentStep(1);
     }
   };
 
@@ -229,6 +358,9 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
   };
 
   const progress = ((currentStep + 1) / stepNames.length) * 100;
+
+  // Проверка, есть ли реальная карта (не пустая)
+  const hasMap = floor?.map && floor.map.length > 100 && !floor.map.includes('background-color: #f0f0f0');
 
   // Функция для встраивания точек в SVG
   const getSvgWithPoints = (originalSvg: string): string => {
@@ -343,13 +475,24 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
             {stepNames.map((name, index) => (
               <div
                 key={index}
-                className={`text-center p-2 rounded-lg text-xs
+                className={`text-center p-2 rounded-lg text-xs cursor-pointer transition-all
                   ${index === currentStep 
-                    ? 'bg-blue-50 text-blue-700 font-medium' 
+                    ? 'bg-blue-50 text-blue-700 font-medium border border-blue-200' 
                     : index < currentStep
-                      ? 'text-green-600'
-                      : 'text-gray-400'
+                      ? 'bg-green-50 text-green-600'
+                      : hasMap && index === 1
+                        ? 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                        : 'bg-gray-50 text-gray-400 cursor-not-allowed'
                   }`}
+                onClick={() => {
+                  if (index === 0) {
+                    setCurrentStep(0);
+                  } else if (index === 1 && hasMap) {
+                    setCurrentStep(1);
+                  } else if (index === 1 && !hasMap) {
+                    alert('Сначала загрузите карту этажа');
+                  }
+                }}
               >
                 <div className={`
                   w-6 h-6 rounded-full flex items-center justify-center mx-auto mb-1 text-xs
@@ -368,85 +511,109 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
           </div>
         </div>
 
-        {/* Карта этажа */}
-        <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-          <div className="flex justify-between items-center mb-2">
-            <p className="text-sm text-gray-500">Карта этажа:</p>
-            {isSelectingPoints && (
-              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full">
-                🔴 Выбрано {calibrationPoints.length} из 2 точек
-              </span>
-            )}
-            {savedCalibration && !isSelectingPoints && calibrationPoints.length === 0 && (
-              <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
-                ✓ Калибровка сохранена
-              </span>
-            )}
-          </div>
-          <div 
-            ref={svgContainerRef}
-            className={`border rounded-lg p-2 bg-gray-50 overflow-auto max-h-96 ${isSelectingPoints ? 'cursor-crosshair' : ''}`}
-            onClick={handleSvgClick}
-            onMouseMove={handleMouseMove}
-            onMouseLeave={() => setHoverPoint(null)}
-          >
-            <div
-              dangerouslySetInnerHTML={{ __html: getSvgWithPoints(floor.map || '') }}
-              className="inline-block"
-            />
-          </div>
-          
-          {/* Информация о выбранных точках */}
-          {(calibrationPoints.length > 0 || savedCalibration) && (
-            <div className="mt-3 p-2 bg-gray-100 rounded-lg">
-              <p className="text-xs text-gray-500 mb-1">📍 Отмеченные точки:</p>
-              <div className="space-y-1">
-                {calibrationPoints.map((point, idx) => (
-                  <div key={idx} className="text-xs text-gray-700">
-                    Точка {idx === 0 ? 'A' : 'B'}: X={Math.round(point.x)}, Y={Math.round(point.y)}
-                  </div>
-                ))}
-                {savedCalibration && calibrationPoints.length === 0 && (
-                  <>
-                    <div className="text-xs text-gray-700">
-                      Точка A: X={Math.round(savedCalibration.points[0]?.x || 0)}, Y={Math.round(savedCalibration.points[0]?.y || 0)}
-                    </div>
-                    <div className="text-xs text-gray-700">
-                      Точка B: X={Math.round(savedCalibration.points[1]?.x || 0)}, Y={Math.round(savedCalibration.points[1]?.y || 0)}
-                    </div>
-                    <div className="text-xs text-green-600">
-                      Расстояние: {savedCalibration.distance} метров
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
         {/* Шаг 1: Загрузка карты */}
         {currentStep === 0 && (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h3 className="text-lg font-semibold mb-4">📁 Шаг 1: Загрузка карты</h3>
+            
             <p className="text-gray-600 mb-4">
-              Карта этажа успешно загружена. Переходите к калибровке.
+              Загрузите SVG карту этажа. Карта обязательна для продолжения.
             </p>
-            <div className="bg-green-50 border border-green-200 rounded-lg p-3">
-              <p className="text-sm text-green-700">
-                ✓ Карта загружена: {floor.map?.length || 0} символов
-              </p>
-            </div>
+            
+            {hasCameras && (
+              <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  ⚠️ На этаже есть {camerasCount} камер. При замене карты все камеры будут удалены.
+                </p>
+              </div>
+            )}
+            
+            {!hasMap ? (
+              <>
+                <FileInput
+                  fileInputRef={fileInputRef}
+                  onFileSelect={handleFileSelect}
+                  label="Выберите SVG файл"
+                  helperText="Поддерживаются только SVG файлы"
+                />
+
+                <SvgPreview file={selectedFile} maxHeight="300px" />
+
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={saveMap}
+                    disabled={!selectedFile || isUploadingMap}
+                    className="flex-1 bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:bg-gray-400 transition-colors"
+                  >
+                    {isUploadingMap ? 'Загрузка...' : '💾 Сохранить карту'}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
+                  <p className="text-sm text-green-700 flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    ✓ Карта загружена
+                  </p>
+                </div>
+                
+                <div className="border rounded-lg p-2 bg-gray-50 overflow-auto max-h-96">
+                  <div
+                    dangerouslySetInnerHTML={{ __html: floor.map || '' }}
+                    className="inline-block"
+                  />
+                </div>
+                
+                <div className="flex gap-3 mt-4">
+                  <button
+                    onClick={() => setCurrentStep(1)}
+                    className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 transition-colors"
+                  >
+                    Далее → Калибровка
+                  </button>
+                  
+                  <button
+                    onClick={() => {
+                      setSelectedFile(null);
+                      if (fileInputRef.current) fileInputRef.current.value = '';
+                    }}
+                    className="flex-1 bg-orange-500 text-white py-2 rounded-lg hover:bg-orange-600 transition-colors"
+                  >
+                    🔄 Заменить карту
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         )}
 
         {/* Шаг 2: Калибровка */}
-        {currentStep === 1 && (
+        {currentStep === 1 && hasMap && (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h3 className="text-lg font-semibold mb-4">📏 Шаг 2: Калибровка расстояния</h3>
             
             <p className="text-gray-600 mb-4">
               Отметьте на карте две точки с известным расстоянием между ними.
             </p>
+            
+            {/* Информация о камерах */}
+            {hasCameras && (
+              <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                <p className="text-sm text-blue-800 flex items-center gap-2">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                  </svg>
+                  ℹ️ На этаже {camerasCount} {camerasCount === 1 ? 'камера' : 'камер'}. 
+                  Калибровку нельзя сбросить, но можно обновить.
+                </p>
+              </div>
+            )}
             
             <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
               <p className="text-sm text-yellow-800">
@@ -455,6 +622,21 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
                 • Ширина коридора — 2 метра<br />
                 • Длина стены — 5 метров
               </p>
+            </div>
+
+            <div className="border rounded-lg p-2 bg-gray-50 overflow-auto max-h-96 mb-4">
+              <div 
+                ref={svgContainerRef}
+                className={`${isSelectingPoints ? 'cursor-crosshair' : ''}`}
+                onClick={handleSvgClick}
+                onMouseMove={handleMouseMove}
+                onMouseLeave={() => setHoverPoint(null)}
+              >
+                <div
+                  dangerouslySetInnerHTML={{ __html: getSvgWithPoints(floor.map || '') }}
+                  className="inline-block"
+                />
+              </div>
             </div>
 
             <div className="border rounded-lg p-4 bg-gray-50">
@@ -484,10 +666,17 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
                   </button>
                 )}
                 
+                {/* Кнопка сброса - отключаем если есть камеры */}
                 {isCalibrated && (
                   <button
-                    onClick={cancelFullCalibration}
-                    className="flex-1 bg-red-500 text-white py-2 rounded-lg hover:bg-red-600 transition-colors"
+                    onClick={resetCalibration}
+                    disabled={hasCameras}
+                    className={`flex-1 py-2 rounded-lg transition-colors ${
+                      hasCameras 
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-red-500 hover:bg-red-600'
+                    } text-white`}
+                    title={hasCameras ? `Нельзя сбросить: на этаже ${camerasCount} камер` : 'Сбросить калибровку'}
                   >
                     ❌ Сбросить калибровку
                   </button>
@@ -532,15 +721,18 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
               )}
             </div>
 
-            <div className="flex gap-2 mt-4">
+            {/* Кнопка сохранения калибровки */}
+            {calibrationDistance && calibrationPoints.length === 2 && (
               <button
-                onClick={saveCalibration}
-                disabled={!calibrationDistance || calibrationPoints.length !== 2}
-                className="flex-1 bg-blue-500 text-white py-2 rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:bg-gray-400 transition-colors"
+                onClick={updateCalibration}
+                disabled={isSubmitting}
+                className="w-full mt-4 bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
               >
-                💾 Сохранить калибровку
+                {isSubmitting ? 'Сохранение...' : (isCalibrated ? '🔄 Обновить калибровку' : '💾 Сохранить калибровку')}
               </button>
-              
+            )}
+
+            <div className="flex gap-2 mt-4">
               <button
                 onClick={resetSecondStep}
                 className="flex-1 bg-gray-500 text-white py-2 rounded-lg hover:bg-gray-600 transition-colors"
@@ -554,45 +746,46 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
         {/* Кнопки навигации */}
         <div className="flex justify-between mt-6">
           <div className="flex gap-3">
-            {/* Кнопка "Назад" - только если не первый шаг */}
-            {currentStep === 1 && (
-              <button
-                onClick={handlePrevStep}
-                className="px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors"
-              >
-                ← Назад
-              </button>
-            )}
-            
-            {/* Кнопка "Отмена" (Выйти) - всегда видна */}
             <button
               onClick={handleBack}
               className="px-6 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors flex items-center gap-2"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
-              Отмена
+              {currentStep === 0 ? 'Отмена' : 'Назад'}
             </button>
           </div>
           
-          {currentStep === stepNames.length - 1 ? (
-            <button
-              onClick={handleCompleteSetup}
-              disabled={!isCalibrated}
-              className="px-6 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 disabled:opacity-50 disabled:bg-gray-400 transition-colors"
-            >
-              ✅ Завершить калибровку
-            </button>
-          ) : (
-            <button
-              onClick={handleNextStep}
-              disabled={currentStep === 1 && !isCalibrated}
-              className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:bg-gray-400 transition-colors"
-            >
-              Далее →
-            </button>
-          )}
+          <div className="flex gap-3">
+            {/* Кнопка "Далее" на первом шаге - только если есть карта */}
+            {currentStep === 0 && hasMap && (
+              <button
+                onClick={handleNextStep}
+                className="px-6 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+              >
+                Далее →
+              </button>
+            )}
+            
+            {/* Кнопка "Завершить" на втором шаге */}
+            {currentStep === 1 && (
+              <button
+                onClick={handleComplete}
+                disabled={!isCalibrated}
+                className={`px-6 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                  isCalibrated 
+                    ? 'bg-green-500 hover:bg-green-600 text-white' 
+                    : 'bg-gray-300 cursor-not-allowed text-gray-500'
+                }`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+                {hasCameras ? 'Завершить' : 'Завершить калибровку'}
+              </button>
+            )}
+          </div>
         </div>
       </main>
 
