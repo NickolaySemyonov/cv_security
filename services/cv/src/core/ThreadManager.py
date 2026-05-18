@@ -40,4 +40,4 @@ class ThreadManager:
         self.ctx.stop_event.set()
         for group in self.runtimes.values():
             for runtime in group:
-                runtime.thread.join()
+                runtime.thread.join(timeout=2)
