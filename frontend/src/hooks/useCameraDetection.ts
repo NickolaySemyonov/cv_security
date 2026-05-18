@@ -1,4 +1,3 @@
-// frontend/src/hooks/useCameraDetection.ts
 import { useEffect, useState } from 'react';
 import api from '../config/axios';
 
@@ -28,11 +27,13 @@ const FRAME_HEIGHT = 480;
 let ws: WebSocket | null = null;
 let globalDetections: DetectionPoint[] = [];
 let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
-let cameraToFloorMap: Map<number, number> = new Map();
 let cameraInfoCache: Map<number, { zone: { minX: number; maxX: number; minY: number; maxY: number }; position: { x: number; y: number } } | null> = new Map();
 let personPositions: Map<string, DetectionPoint> = new Map();
 let lastRenderTime = 0;
 const RENDER_INTERVAL = 50;
+
+// Хранилище ID камер на текущем этаже
+let currentFloorCameraIds: Set<number> = new Set();
 
 async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number; maxX: number; minY: number; maxY: number }; position: { x: number; y: number } } | null> {
   if (cameraInfoCache.has(cameraId)) {
@@ -142,6 +143,12 @@ function notifySubscribers() {
 }
 
 async function processDetection(message: DetectionMessage) {
+  // Проверяем, принадлежит ли камера текущему этажу
+  if (!currentFloorCameraIds.has(message.camera_id)) {
+    console.log(`❌ Камера ${message.camera_id} не принадлежит текущему этажу, игнорируем`);
+    return;
+  }
+  
   const cameraInfo = await loadCameraInfo(message.camera_id);
   if (!cameraInfo) return;
   
@@ -169,7 +176,7 @@ async function processDetection(message: DetectionMessage) {
     });
   });
   
-  // Удаляем старые точки
+  // Удаляем старые точки (старше 2 секунд)
   for (const [key, point] of personPositions.entries()) {
     if (point.timestamp < now - 2) {
       personPositions.delete(key);
@@ -199,6 +206,7 @@ function connectWebSocket() {
   };
   
   ws.onclose = () => {
+    console.log('WebSocket закрыт, переподключение...');
     ws = null;
     setTimeout(connectWebSocket, 3000);
   };
@@ -212,37 +220,29 @@ export function useCameraDetection() {
   const [detections, setDetections] = useState<DetectionPoint[]>([]);
   const [isConnected, setIsConnected] = useState(false);
 
-  // Регистрация камер на этаже (перезаписываем старые)
-  const registerFloorCameras = (floorId: number, cameraIds: number[]) => {
-    // Очищаем старые регистрации для этого этажа
-    for (const [camId, camFloor] of cameraToFloorMap.entries()) {
-      if (camFloor === floorId) {
-        cameraToFloorMap.delete(camId);
-      }
-    }
+  const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
+    // Обновляем Set с ID камер текущего этажа
+    currentFloorCameraIds.clear();
+    cameraIds.forEach(id => currentFloorCameraIds.add(id));
     
-    cameraIds.forEach(cameraId => {
-      cameraToFloorMap.set(cameraId, floorId);
-    });
+    // Очищаем детекции при смене этажа
+    personPositions.clear();
+    globalDetections = [];
+    setDetections([]);
     
     console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
-    console.log(`📌 Текущая карта камер:`, Array.from(cameraToFloorMap.entries()));
+    console.log(`📌 Текущий Set камер:`, Array.from(currentFloorCameraIds));
   };
 
-  // Получение детекций для конкретного этажа
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
-    const filtered = detections.filter(d => {
-      const cameraFloor = cameraToFloorMap.get(d.cameraId);
-      return cameraFloor === floorId;
-    });
-    return filtered;
+    // Просто возвращаем все детекции, так как processDetection уже отфильтровал
+    return detections;
   };
 
-  // Очистка всех детекций (при смене этажа)
   const clearDetections = () => {
     personPositions.clear();
     globalDetections = [];
-    notifySubscribers();
+    setDetections([]);
     console.log('🧹 Детекции очищены');
   };
 

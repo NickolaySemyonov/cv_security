@@ -6,6 +6,7 @@ interface FileInputProps {
   onFileSelect: (event: ChangeEvent<HTMLInputElement>) => void;
   label: string;
   helperText?: string;
+  hidden?: boolean;
 }
 
 const FileInput = ({ fileInputRef, onFileSelect, label, helperText }: FileInputProps) => {

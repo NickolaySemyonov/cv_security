@@ -1,4 +1,3 @@
-# cameras.py
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
@@ -19,6 +18,17 @@ async def get_cameras_by_floor(
     """Получить все камеры этажа"""
     cameras = db.query(Camera).filter(Camera.floor_id == floor_id).all()
     return cameras
+
+
+@router.get("/floor/{floor_id}/ids")
+async def get_camera_ids_by_floor(
+    floor_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
+    """Получить список ID камер на этаже"""
+    cameras = db.query(Camera.id).filter(Camera.floor_id == floor_id).all()
+    return [camera.id for camera in cameras]
 
 
 @router.get("/{camera_id}", response_model=CameraResponse)
@@ -52,7 +62,8 @@ async def create_camera(
         is_configured=camera_data.is_configured,
         points_of_homography=camera_data.points_of_homography,
         floor_id=camera_data.floor_id,
-        area_id=camera_data.area_id
+        area_id=camera_data.area_id,
+        video_stream=camera_data.video_stream
     )
     db.add(camera)
     db.commit()
@@ -94,6 +105,7 @@ async def update_camera_homography(
         raise HTTPException(404, "Камера не найдена")
     
     camera.points_of_homography = data.get("points_of_homography")
+    camera.video_stream = data.get("video_stream")
     camera.is_configured = data.get("is_configured", True)
     
     db.commit()

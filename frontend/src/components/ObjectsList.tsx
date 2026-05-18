@@ -347,7 +347,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                     onCardClick={handleObjectClick}
                     onAddFloor={openAddFloorForm}
                     onDeleteObject={handleDeleteObject}
-                    onDeleteFloor={handleDeleteFloor}
                   />
                 ))}
               </div>

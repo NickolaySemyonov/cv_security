@@ -5,7 +5,7 @@ from database import get_db
 from models import Floor, User, Camera
 from schemas import FloorCreate, FloorResponse, CalibrationData, FloorSettingsResponse, FloorUpdate
 from security import get_current_user
-from pydantic import BaseModel  # <-- ВАЖНО: добавить этот импорт
+from pydantic import BaseModel
 import re
 
 router = APIRouter(prefix="/floors", tags=["floors"])
@@ -201,20 +201,19 @@ async def reset_calibration(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Сбросить калибровку этажа (только если нет камер)"""
+    """Сбросить калибровку этажа и удалить все камеры"""
     floor = db.query(Floor).filter(Floor.id == floor_id).first()
     if not floor:
         raise HTTPException(404, "Этаж не найден")
     
-    # Проверяем, есть ли камеры на этаже
-    cameras_count = db.query(Camera).filter(Camera.floor_id == floor_id).count()
-    if cameras_count > 0:
-        raise HTTPException(
-            status_code=409,
-            detail=f"Нельзя сбросить калибровку: на этаже {cameras_count} камер. Сначала удалите все камеры или обновите калибровку через PATCH."
-        )
+    # Удаляем все камеры этажа
+    cameras = db.query(Camera).filter(Camera.floor_id == floor_id).all()
+    cameras_count = len(cameras)
     
-    # Сброс калибровки (только если камер нет)
+    for camera in cameras:
+        db.delete(camera)
+    
+    # Сбрасываем калибровку
     floor.is_calibrated = False
     floor.calibration_points = None
     floor.calibration_distance = None
@@ -224,7 +223,10 @@ async def reset_calibration(
     
     db.commit()
     
-    return {"message": "Калибровка успешно сброшена"}
+    return {
+        "message": f"Калибровка сброшена. Удалено {cameras_count} камер.",
+        "cameras_deleted": cameras_count
+    }
 
 
 @router.get("/{floor_id}/settings", response_model=FloorSettingsResponse)

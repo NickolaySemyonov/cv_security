@@ -1,4 +1,3 @@
-// frontend/src/components/DetectionOverlay.tsx
 import { useRef, useEffect } from 'react';
 
 interface DetectionPoint {
@@ -45,7 +44,6 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
     
     let modifiedSvg = svg;
     
-    // Рисуем зоны камер
     cameras.forEach((camera) => {
       if (camera.zone && camera.zone.length >= 4) {
         const points = camera.zone.map(p => `${p[0]},${p[1]}`).join(' ');
@@ -54,7 +52,6 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
       }
     });
     
-    // Рисуем точки детекций
     console.log('[DETECTION_OVERLAY] Отрисовка точек:', detections.length);
     
     const detectionsByCamera: Map<number, DetectionPoint[]> = new Map();
@@ -88,33 +85,8 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
     return modifiedSvg;
   };
 
-  const activeCameras = [...new Set(detections.map(d => d.cameraId))];
-  const totalPoints = detections.length;
-
   return (
     <div className="relative">
-      <div className="absolute top-2 right-2 z-10 flex gap-2">
-        {isConnected ? (
-          <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full shadow-md">
-            🟢 Детекция активна
-          </span>
-        ) : (
-          <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full shadow-md">
-            ⚫ Ожидание подключения...
-          </span>
-        )}
-        {totalPoints > 0 && (
-          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-full shadow-md">
-            📍 {totalPoints} точек
-          </span>
-        )}
-        {activeCameras.length > 0 && (
-          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-1 rounded-full shadow-md">
-            🎥 {activeCameras.length} камер
-          </span>
-        )}
-      </div>
-      
       <div
         ref={containerRef}
         dangerouslySetInnerHTML={{ __html: getSvgWithDetections(svgContent) }}
