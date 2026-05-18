@@ -102,7 +102,6 @@ class Broker:
                     body=body,
                     properties=BasicProperties(delivery_mode=2)
                 )
-                print(f"[Broker] Published to {exchange_name}:{routing_key}")
                 return True
             except Exception as e:
                 print(f"[Broker] Publish error: {e}")
