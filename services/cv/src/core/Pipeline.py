@@ -16,8 +16,8 @@ class WorkerSpec:
 
 
 class Pipeline:
-    def __init__(self):
-        self.ctx = PipelineContext()
+    def __init__(self, ctx: PipelineContext = None):
+        self.ctx = ctx if ctx else PipelineContext()
         self.worker_specs: list[WorkerSpec] = []
 
     def add_queue(self, name: str, maxsize: int):

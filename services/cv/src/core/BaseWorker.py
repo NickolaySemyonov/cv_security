@@ -1,8 +1,10 @@
-from src.core.PipelineContext import PipelineContext
+from typing import TypeVar
+
+ContextType = TypeVar('ContextType', bound='PipelineContext')
 
 
 class BaseWorker:
-    def __init__(self, ctx: PipelineContext, in_queue_names: list[str] = None, out_queue_name=None, **kwargs):
+    def __init__(self, ctx: ContextType, in_queue_names: list[str] = None, out_queue_name=None, **kwargs):
         self.ctx = ctx
         self.stop_event = ctx.stop_event
 
