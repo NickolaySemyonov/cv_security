@@ -3,3 +3,4 @@ opencv-python
 pika
 numpy
 pydantic-settings
+psycopg2-binary
