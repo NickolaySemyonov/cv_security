@@ -1,26 +1,19 @@
+from dataclasses import dataclass
+
 from ultralytics import YOLO
 
 
+@dataclass
 class InferenceConfig:
-    def __init__(
-            self,
-            model_path: str,
-            model_type: str = "yolo",
-            input_size: tuple[int, int] = (640, 640),
-            confidence_threshold: float = 0.5,
-            iou_threshold: float = 0.45,
-            batch_size: int = 1,
-            device: str = "cuda",
-            target_classes: list[int] = None,
-    ):
-        self.model_path = model_path
-        self.model_type = model_type
-        self.input_size = input_size
-        self.confidence_threshold = confidence_threshold
-        self.iou_threshold = iou_threshold
-        self.batch_size = batch_size
-        self.device = device
-        self.target_classes = target_classes
+    model_path: str
+    model_type: str = "yolo"
+    input_size: tuple[int, int] = (640, 640)
+    confidence_threshold: float = 0.5
+    iou_threshold: float = 0.45
+    batch_size: int = 1
+    device: str = "cuda"
+    target_classes: list[int] = None
+    verbose: bool = False  # inference metrics logging
 
 
 class Detection:
@@ -51,19 +44,13 @@ class InferenceModule:
             "conf": self.config.confidence_threshold,
             "iou": self.config.iou_threshold,
             "device": self.config.device,
+            "verbose": self.config.verbose,
         }
         if self.config.target_classes is not None:
             kwargs["classes"] = self.config.target_classes
 
         result = self.model(frame, **kwargs)[0]
 
-        # result = self.model(
-        #     frame,
-        #     imgsz=self.config.input_size,
-        #     conf=self.config.confidence_threshold,
-        #     iou=self.config.iou_threshold,
-        #     device=self.config.device,
-        #     )[0]  # item of Result list
         return InferenceResult(result.plot(), self.extract_detections(result))
 
     def extract_detections(self, result) -> list[Detection]:
