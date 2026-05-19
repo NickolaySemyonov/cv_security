@@ -143,7 +143,6 @@ function notifySubscribers() {
 }
 
 async function processDetection(message: DetectionMessage) {
-  // Проверяем, принадлежит ли камера текущему этажу
   if (!currentFloorCameraIds.has(message.camera_id)) {
     console.log(`❌ Камера ${message.camera_id} не принадлежит текущему этажу, игнорируем`);
     return;
@@ -176,7 +175,6 @@ async function processDetection(message: DetectionMessage) {
     });
   });
   
-  // Удаляем старые точки (старше 2 секунд)
   for (const [key, point] of personPositions.entries()) {
     if (point.timestamp < now - 2) {
       personPositions.delete(key);
@@ -221,11 +219,9 @@ export function useCameraDetection() {
   const [isConnected, setIsConnected] = useState(false);
 
   const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
-    // Обновляем Set с ID камер текущего этажа
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
     
-    // Очищаем детекции при смене этажа
     personPositions.clear();
     globalDetections = [];
     setDetections([]);

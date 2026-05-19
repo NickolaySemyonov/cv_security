@@ -10,9 +10,6 @@ import re
 
 router = APIRouter(prefix="/floors", tags=["floors"])
 
-
-# ========== ЭНДПОИНТЫ ==========
-
 @router.get("/", response_model=List[FloorResponse])
 async def get_floors(
     db: Session = Depends(get_db),
@@ -70,15 +67,12 @@ async def update_floor(
     if not floor:
         raise HTTPException(404, "Этаж не найден")
     
-    # Проверяем, обновляется ли карта
     is_map_changed = floor_data.map is not None and floor_data.map != floor.map
     
-    # Обновляем поля
     update_data = floor_data.dict(exclude_unset=True)
     for field, value in update_data.items():
         setattr(floor, field, value)
     
-    # Если карта изменилась — удаляем все камеры и сбрасываем калибровку
     if is_map_changed:
         # Удаляем все камеры этажа
         cameras = db.query(Camera).filter(Camera.floor_id == floor_id).all()
@@ -87,7 +81,6 @@ async def update_floor(
         for camera in cameras:
             db.delete(camera)
         
-        # Сбрасываем калибровку
         floor.is_calibrated = False
         floor.calibration_points = None
         floor.calibration_distance = None
@@ -135,22 +128,18 @@ async def update_calibration(
     if not floor:
         raise HTTPException(404, "Этаж не найден")
     
-    # Проверяем, что переданы 2 точки
     points = calibration_data.calibration_points
     if len(points) != 2:
         raise HTTPException(400, "Необходимо указать ровно 2 точки для калибровки")
     
-    # Вычисляем расстояние между точками в пикселях
     distance_px = ((points[1]["x"] - points[0]["x"]) ** 2 + 
                    (points[1]["y"] - points[0]["y"]) ** 2) ** 0.5
     
     if distance_px == 0:
         raise HTTPException(400, "Расстояние между точками не может быть равно нулю")
     
-    # Вычисляем количество пикселей на метр
     pixels_per_meter = distance_px / calibration_data.calibration_distance
     
-    # Получаем размеры SVG
     svg_width = 800
     svg_height = 600
     
@@ -167,7 +156,6 @@ async def update_calibration(
             if height_match:
                 svg_height = float(height_match.group(1))
     
-    # Вычисляем реальные размеры
     if abs(points[1]["x"] - points[0]["x"]) > abs(points[1]["y"] - points[0]["y"]):
         real_width_meters = calibration_data.calibration_distance
         real_height_meters = real_width_meters * (svg_height / svg_width)
@@ -175,7 +163,6 @@ async def update_calibration(
         real_height_meters = calibration_data.calibration_distance
         real_width_meters = real_height_meters * (svg_width / svg_height)
     
-    # Обновляем калибровку
     floor.calibration_points = calibration_data.calibration_points
     floor.calibration_distance = calibration_data.calibration_distance
     floor.pixels_per_meter = pixels_per_meter
@@ -206,14 +193,12 @@ async def reset_calibration(
     if not floor:
         raise HTTPException(404, "Этаж не найден")
     
-    # Удаляем все камеры этажа
     cameras = db.query(Camera).filter(Camera.floor_id == floor_id).all()
     cameras_count = len(cameras)
     
     for camera in cameras:
         db.delete(camera)
     
-    # Сбрасываем калибровку
     floor.is_calibrated = False
     floor.calibration_points = None
     floor.calibration_distance = None

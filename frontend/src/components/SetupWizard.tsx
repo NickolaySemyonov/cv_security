@@ -20,7 +20,6 @@ const SetupWizard = ({
 
   return (
     <div className="bg-white rounded-xl shadow-md p-4 mb-6">
-      {/* Заголовок и прогресс */}
       <div className="flex justify-between items-center mb-3">
         <h3 className="text-lg font-semibold text-gray-800">
           Настройка этажа
@@ -30,18 +29,15 @@ const SetupWizard = ({
         </span>
       </div>
 
-      {/* Прогресс-бар */}
       <div className="relative w-full h-3 bg-gray-200 rounded-full overflow-hidden mb-4">
         <div 
           className="absolute left-0 top-0 h-full bg-gradient-to-r from-blue-500 to-purple-600 rounded-full transition-all duration-500"
           style={{ width: `${progress}%` }}
         >
-          {/* Анимированный индикатор */}
           <div className="absolute right-0 top-1/2 transform -translate-y-1/2 w-2 h-4 bg-white rounded-full opacity-70 animate-pulse" />
         </div>
       </div>
 
-      {/* Шаги */}
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mt-4">
         {stepNames.map((name, index) => (
           <button
@@ -60,7 +56,6 @@ const SetupWizard = ({
               }
             `}
           >
-            {/* Номер шага */}
             <div className={`
               w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold mb-2
               ${index === currentStep
@@ -79,7 +74,6 @@ const SetupWizard = ({
               )}
             </div>
             
-            {/* Название шага */}
             <span className={`
               text-xs font-medium text-center
               ${index === currentStep ? 'text-blue-700' : 'text-gray-600'}
@@ -99,7 +93,6 @@ const SetupWizard = ({
         ))}
       </div>
 
-      {/* Информация о текущем шаге */}
       <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
         <p className="text-sm text-blue-800">
           <strong>📌 Текущий шаг:</strong> {stepNames[currentStep]}
@@ -112,7 +105,6 @@ const SetupWizard = ({
   );
 };
 
-// Описания шагов
 const getStepDescription = (step: number): string => {
   const descriptions = [
     "Загрузите SVG карту этажа или используйте карту по умолчанию",

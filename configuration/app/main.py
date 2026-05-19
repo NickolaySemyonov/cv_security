@@ -12,7 +12,6 @@ import os
 
 app = FastAPI(title="CV Security API")
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://localhost:3000"],
@@ -21,13 +20,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Подключаем роутеры
 app.include_router(auth_router)
 app.include_router(floors_router)
 app.include_router(cameras_router)
 app.include_router(videos_router)  # ← добавить
 
-# Статическая раздача видео файлов
 VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
 os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
 app.mount("/static/videos", StaticFiles(directory=VIDEOS_DIRECTORY), name="videos")

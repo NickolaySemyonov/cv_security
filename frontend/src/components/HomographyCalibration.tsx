@@ -44,7 +44,6 @@ const HomographyCalibration = ({
   const [mapSvgElement, setMapSvgElement] = useState<SVGSVGElement | null>(null);
   const [loadingVideos, setLoadingVideos] = useState(true);
 
-  // Загрузка списка видео
   useEffect(() => {
     if (step === 'select') {
       fetchVideos();
@@ -69,7 +68,6 @@ const HomographyCalibration = ({
     setStep('video');
   };
 
-  // Запуск видео
   useEffect(() => {
     if (step === 'video' && videoRef.current && selectedVideo) {
       videoRef.current.src = `http://localhost:8000${selectedVideo}`;
@@ -78,7 +76,6 @@ const HomographyCalibration = ({
     }
   }, [step, selectedVideo]);
 
-  // Загрузка SVG карты
   useEffect(() => {
     if (step === 'map' && mapContainerRef.current && svgContent) {
       const container = mapContainerRef.current;
@@ -308,7 +305,6 @@ const HomographyCalibration = ({
     }
   };
 
-  // Рендер выбора видео
   if (step === 'select') {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -350,7 +346,6 @@ const HomographyCalibration = ({
     );
   }
 
-  // Шаг 1: Видео
   if (step === 'video') {
     return (
       <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -426,7 +421,6 @@ const HomographyCalibration = ({
     );
   }
 
-  // Шаг 2: Карта
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 max-w-4xl w-full max-h-[90vh] overflow-auto">

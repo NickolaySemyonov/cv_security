@@ -35,7 +35,6 @@ export const getSvgWithPoints = (
     }
   }
   
-  // Выбираемые точки
   calibrationPoints.forEach((point, idx) => {
     markers += `
       <circle cx="${point.x}" cy="${point.y}" r="10" fill="#EF4444" stroke="#fff" stroke-width="2" />
@@ -43,7 +42,6 @@ export const getSvgWithPoints = (
     `;
   });
   
-  // Линия между точками
   if (calibrationPoints.length === 2) {
     markers += `
       <line x1="${calibrationPoints[0].x}" y1="${calibrationPoints[0].y}" 
@@ -52,7 +50,6 @@ export const getSvgWithPoints = (
     `;
   }
   
-  // Точка при наведении
   if (isSelectingPoints && hoverPoint && calibrationPoints.length < 2) {
     markers += `
       <circle cx="${hoverPoint.x}" cy="${hoverPoint.y}" r="6" fill="#3B82F6" fill-opacity="0.5" stroke="#3B82F6" stroke-width="2" />

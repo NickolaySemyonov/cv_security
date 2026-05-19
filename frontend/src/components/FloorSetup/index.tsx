@@ -146,7 +146,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     if (coords) setHoverPoint(coords);
   };
 
-  // Сохранение калибровки
   const updateCalibration = async () => {
     if (!calibrationDistance || calibrationPoints.length !== 2) return;
     setIsSubmitting(true);
@@ -160,7 +159,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
       sessionStorage.setItem('camerasUpdated', Date.now().toString());
       alert('Калибровка успешно сохранена!');
       
-      // Переход на страницу этажа
       if (floor?.place && floor?.number) {
         window.location.href = `/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`;
       } else if (floor?.place) {
@@ -175,7 +173,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     }
   };
 
-  // Сброс калибровки с автоматическим переходом на страницу этажа
   const resetCalibration = async () => {
     try {
       const response = await api.delete(`/floors/${id}/calibrate`);
@@ -185,7 +182,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
       const deletedCount = response.data.cameras_deleted || 0;
       alert(`Калибровка сброшена. Удалено ${deletedCount} камер.`);
       
-      // Автоматический переход на страницу этажа
       if (floor?.place && floor?.number) {
         window.location.href = `/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`;
       } else if (floor?.place) {
@@ -200,7 +196,6 @@ const FloorSetup = ({ user, onLogout, onComplete }: FloorSetupProps) => {
     }
   };
 
-  // Функция отмены
   const handleCancel = () => {
     if (floor?.place && floor?.number) {
       window.location.href = `/objects/${encodeURIComponent(floor.place)}/floors?floor=${floor.number}`;

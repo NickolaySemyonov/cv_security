@@ -8,7 +8,6 @@ from models import User
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
-# Путь к папке с видео (настройте под свой проект)
 VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
 
 
@@ -18,14 +17,12 @@ async def get_videos_list(
 ):
     """Получить список всех видео файлов из папки"""
     try:
-        # Создаём папку, если её нет
         if not os.path.exists(VIDEOS_DIRECTORY):
             os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
             return {"videos": []}
         
         video_files = []
         for filename in os.listdir(VIDEOS_DIRECTORY):
-            # Проверяем расширения видеофайлов
             if filename.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm', '.mpeg')):
                 file_path = os.path.join(VIDEOS_DIRECTORY, filename)
                 file_size = os.path.getsize(file_path)

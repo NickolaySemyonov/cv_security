@@ -32,7 +32,6 @@ const ObjectCard = ({
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 transition-all duration-200 hover:shadow-xl relative group">
       <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
       
-      {/* Кнопка удаления объекта */}
       <button
         onClick={handleDeleteObject}
         className="absolute top-2 right-2 p-2 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 z-10"
@@ -43,7 +42,6 @@ const ObjectCard = ({
         </svg>
       </button>
       
-      {/* Клик по карточке - переход на страницу этажей объекта */}
       <div 
         onClick={() => onCardClick(place)}
         className="cursor-pointer text-center pt-6 pb-4"
@@ -59,7 +57,6 @@ const ObjectCard = ({
         </p>
       </div>
       
-      {/* Кнопка добавления этажа */}
       <div className="px-4 pb-4">
         <button
           onClick={() => onAddFloor(place, floorsCount)}

@@ -8,7 +8,6 @@ const api: AxiosInstance = axios.create({
   },
 });
 
-// Интерсептор для добавления токена
 api.interceptors.request.use(
   (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     const token = localStorage.getItem('access_token');
@@ -20,7 +19,6 @@ api.interceptors.request.use(
   (error) => Promise.reject(error)
 );
 
-// Интерсептор для обновления токена
 api.interceptors.response.use(
   (response: AxiosResponse) => response,
   async (error) => {

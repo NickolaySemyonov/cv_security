@@ -44,10 +44,8 @@ export const CalibrationPanel = ({
   getSvgWithPoints
 }: CalibrationPanelProps) => {
   
-  // Локальное состояние для значения input
   const [inputValue, setInputValue] = useState<string>('');
 
-  // Синхронизация с внешним значением
   useEffect(() => {
     if (calibrationDistance === null || calibrationDistance === 0) {
       setInputValue('');
@@ -56,40 +54,33 @@ export const CalibrationPanel = ({
     }
   }, [calibrationDistance]);
 
-  // Функция для валидации вводимого расстояния (только цифры, от 1 до 9)
   const handleDistanceChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
     
-    // Разрешаем пустое значение
     if (value === '') {
       setInputValue('');
       onDistanceChange(0);
       return;
     }
     
-    // Проверка: только цифры
     const onlyDigitsPattern = /^\d+$/;
     
     if (!onlyDigitsPattern.test(value)) {
       return;
     }
     
-    // Преобразуем в число
     let numValue = parseInt(value, 10);
     
-    // Проверка на NaN
     if (isNaN(numValue)) {
       return;
     }
     
-    // Ограничиваем максимальное значение (не больше 9)
     if (numValue > 9) {
       setInputValue('9');
       onDistanceChange(9);
       return;
     }
     
-    // Запрещаем 0
     if (numValue === 0) {
       setInputValue('');
       onDistanceChange(0);
@@ -100,17 +91,14 @@ export const CalibrationPanel = ({
     onDistanceChange(numValue);
   };
 
-  // Обработка клавиш (только цифры 1-9)
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     const key = e.key;
     
-    // Запрещаем ввод 0
     if (key === '0') {
       e.preventDefault();
       return;
     }
     
-    // Разрешаем только цифры 1-9 и служебные клавиши
     const allowedKeys = [
       '1', '2', '3', '4', '5', '6', '7', '8', '9',
       'Backspace', 'Delete', 'Tab', 'Escape', 'Enter',
@@ -123,7 +111,6 @@ export const CalibrationPanel = ({
     }
   };
 
-  // Обработчик сброса калибровки с подтверждением
   const handleResetClick = async () => {
     const message = hasCameras 
       ? `⚠️ ВНИМАНИЕ!\n\nНа этаже есть ${camerasCount} камер.\n\nПри сбросе калибровки ВСЕ КАМЕРЫ БУДУТ УДАЛЕНЫ.\n\nПродолжить?`

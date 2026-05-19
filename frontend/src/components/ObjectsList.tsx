@@ -195,7 +195,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     }
   };
 
-  // Удаление объекта (всех этажей)
   const handleDeleteObject = async (place: string): Promise<void> => {
     try {
       const floorsToDelete = floors.filter(f => f.place === place);
@@ -212,7 +211,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     }
   };
 
-  // Удаление одного этажа
   const handleDeleteFloor = async (floorId: number, place: string): Promise<void> => {
     try {
       await api.delete(`/floors/${floorId}`);
