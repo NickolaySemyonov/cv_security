@@ -4,10 +4,11 @@ import time
 
 import cv2
 
-from src.ThreadedPipeline import CapData
+
 from src.core.BaseWorker import BaseWorker
 from src.core.CVPipelineContext import CVPipelineContext
 from src.core.models.camera_config import CameraConfig, CameraData
+from src.core.models.queue_content import CapData
 
 
 class CaptureWorker(BaseWorker):

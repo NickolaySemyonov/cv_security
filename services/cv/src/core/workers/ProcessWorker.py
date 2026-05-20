@@ -1,8 +1,9 @@
 import queue
 import time
 
-from src.ThreadedPipeline import CapData, ProcessedData
+
 from src.core.BaseWorker import BaseWorker
+from src.core.models.queue_content import CapData, ProcessedData
 
 
 class ProcessWorker(BaseWorker):

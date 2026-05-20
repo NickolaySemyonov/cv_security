@@ -1,12 +1,9 @@
 import signal
 import sys
 
-import os
 import time
 
-from src.Broker import Broker
-from src.CameraConfig import CameraConfig
-from src.ThreadedPipeline import ThreadedPipeline
+from src.modules.Broker import Broker
 from src.config.constants import CAP_PREFIX
 from src.config.settings import Settings
 from src.core.CVPipelineContext import CVPipelineContext
@@ -14,7 +11,6 @@ from src.core.Pipeline import Pipeline
 from src.core.ThreadManager import ThreadManager
 from src.core.workers.CaptureWorker import CaptureWorker
 from src.core.workers.ConfigWatcherWorker import ConfigWatcherWorker
-from src.core.workers.DisplayWorker import DisplayWorker
 from src.core.workers.MessageWorker import MessageWorker
 from src.core.workers.ProcessWorker import ProcessWorker
 from src.modules.InferenceModule import InferenceConfig
