@@ -10,8 +10,8 @@ class WorkerSpec:
     worker_id: str
     worker_cls: type[BaseWorker]
     count: int = 1
-    in_queue_names: list[str] | None = None
-    out_queue_name: str | None = None
+    in_queue_names: Optional[list[str]] = None
+    out_queue_name: Optional[str] = None
     kwargs: dict = field(default_factory=dict)
 
 
@@ -28,7 +28,6 @@ class Pipeline:
             self,
             worker_id: str,
             worker_cls: type[BaseWorker],
-            *,
             count: int = 1,
             in_queue_names: Optional[list[str]] = None,
             out_queue_name: Optional[str] = None,

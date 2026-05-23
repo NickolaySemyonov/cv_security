@@ -6,22 +6,25 @@ import numpy as np
 
 
 from src.core.BaseWorker import BaseWorker
+from src.core.CVPipelineContext import CVPipelineContext
 from src.core.models.queue_content import ProcessedData
 
 
 class DisplayWorker(BaseWorker):
 
-    def __init__(self, ctx, in_queue_names=None, out_queue_name=None, **kwargs):
+    def __init__(self, ctx: CVPipelineContext, in_queue_names=None, out_queue_name=None, **kwargs):
         super().__init__(ctx, in_queue_names, out_queue_name, **kwargs)
         self.last_frames: dict[int, np.ndarray] = {}  # camera_id → frame
 
     def run(self):
         print("[Display] Tile worker started")
-        window_name = "Cameras Tile"
+        self.ctx.config_ready_event.wait()
 
+        window_name = "Cameras Tile"
         cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
         cv2.resizeWindow(window_name, 1200, 900)  # под размеры тайла
         cols = 2  # 2 камеры в строке
+
         while not self.ctx.stop_event.is_set():
             try:
                 # сначала обновляем last_frames

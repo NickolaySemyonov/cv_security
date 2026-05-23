@@ -1,21 +1,22 @@
 import queue
 import time
 
-
 from src.core.BaseWorker import BaseWorker
+from src.core.CVPipelineContext import CVPipelineContext
 from src.core.models.queue_content import CapData, ProcessedData
 
 
 class ProcessWorker(BaseWorker):
-    def __init__(self, ctx, in_queue_names, out_queue_name, **kwargs):
+    def __init__(self, ctx: CVPipelineContext, in_queue_names, out_queue_name, **kwargs):
         super().__init__(ctx, in_queue_names, out_queue_name, **kwargs)
         self.inference_module = kwargs.get("inference_module")
 
     def run(self):
         print("[Process] Thread started")
+        self.ctx.config_ready_event.wait()
 
         while not self.ctx.stop_event.is_set():
-            # 1) за один проход: пытаемся взять по одному кадру с каждой камеры
+
             items: list[CapData] = []
             for in_q in self.in_queues:
                 try:
@@ -24,12 +25,10 @@ class ProcessWorker(BaseWorker):
                 except queue.Empty:
                     pass
 
-            # 2) если ни одной камеры не получилось - немного ждём
             if not items:
                 time.sleep(0.001)
                 continue
 
-            # 3) обрабатываем все найденные кадры (поочередно)
             for item in items:
                 try:
                     inference_result = self.inference_module.process_frame(

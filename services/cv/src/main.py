@@ -1,9 +1,7 @@
 import signal
 import sys
-
 import time
 
-from src.modules.Broker import Broker
 from src.config.constants import CAP_PREFIX
 from src.config.settings import Settings
 from src.core.CVPipelineContext import CVPipelineContext
@@ -13,6 +11,7 @@ from src.core.workers.CaptureWorker import CaptureWorker
 from src.core.workers.ConfigWatcherWorker import ConfigWatcherWorker
 from src.core.workers.MessageWorker import MessageWorker
 from src.core.workers.ProcessWorker import ProcessWorker
+from src.modules.Broker import Broker
 from src.modules.InferenceModule import InferenceConfig
 from src.modules.InferenceModule import InferenceModule
 
@@ -29,7 +28,7 @@ def main():
     # define capture queues & workers
     for camera_id in settings.camera_ids:
         linked_name = CAP_PREFIX + str(camera_id)
-        pipeline.add_queue(linked_name, maxsize=4)
+        pipeline.add_queue(linked_name, maxsize=2)
         pipeline.add_worker(linked_name, CaptureWorker, out_queue_name=linked_name, camera_id=camera_id)
 
     # define processed queue & process/message workers using this queue
@@ -65,8 +64,8 @@ def main():
         manager.stop()
         sys.exit(0)
 
-    signal.signal(signal.SIGINT, signal_handler)  # Ctrl+C
-    signal.signal(signal.SIGTERM, signal_handler)  # kill
+    signal.signal(signal.SIGINT, signal_handler)
+    signal.signal(signal.SIGTERM, signal_handler)
 
     while True:
         time.sleep(0.5)
