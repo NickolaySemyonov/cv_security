@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from auth import router as auth_router
 from floors import router as floors_router
 from cameras import router as cameras_router
-from videos import router as videos_router  # ← добавить
+from videos import router as videos_router
+from logs import router as logs_router 
 from security import get_current_user
 from models import User
 import os
@@ -23,7 +24,8 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(floors_router)
 app.include_router(cameras_router)
-app.include_router(videos_router)  # ← добавить
+app.include_router(videos_router)
+app.include_router(logs_router)
 
 VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
 os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)

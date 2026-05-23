@@ -5,6 +5,7 @@ from database import get_db
 from models import Floor, User, Camera
 from schemas import FloorCreate, FloorResponse, CalibrationData, FloorSettingsResponse, FloorUpdate
 from security import get_current_user
+from crud.logs import action_logger
 from pydantic import BaseModel
 import re
 
@@ -39,7 +40,6 @@ async def create_floor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Создать новый этаж"""
     existing = db.query(Floor).filter(
         Floor.place == floor_data.place,
         Floor.number == floor_data.number
@@ -52,6 +52,14 @@ async def create_floor(
     db.add(floor)
     db.commit()
     db.refresh(floor)
+    
+    action_logger.log(
+        db,
+        user_id=current_user.id,
+        title="СОЗДАНИЕ ЭТАЖА",
+        text=f"Создан этаж {floor.number} у объекта '{floor.place}', ID: {floor.id}"
+    )
+    
     return floor
 
 

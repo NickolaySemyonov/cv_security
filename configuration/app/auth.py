@@ -1,4 +1,4 @@
-# auth.py
+# backend/app/auth.py (полностью исправленный)
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -7,7 +7,6 @@ import os
 from database import get_db
 from crud.user import user
 from schemas import UserLogin, TokenResponse, UserResponse, RefreshResponse, RefreshRequest
-from pydantic import BaseModel
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
@@ -15,8 +14,6 @@ SECRET_KEY = "gagara"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30 
 REFRESH_TOKEN_EXPIRE_DAYS = 7     
-
-
 
 def create_access_token(data: dict):
     to_encode = data.copy()
@@ -45,12 +42,20 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
         data={"sub": str(authenticated_user.id), "login": authenticated_user.login, "type": "refresh"}
     )
     
+    # ВАЖНО: создаём объект UserResponse явно
+    user_response = UserResponse(
+        id=authenticated_user.id,
+        login=authenticated_user.login
+    )
+    
+    # ВАЖНО: возвращаем объект TokenResponse
     return TokenResponse(
         access_token=access_token,
-        refresh_token=refresh_token, 
+        refresh_token=refresh_token,
         token_type="bearer",
-        user=UserResponse.model_validate(authenticated_user)
+        user=user_response
     )
+
 
 @router.post("/refresh", response_model=RefreshResponse)
 async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
@@ -78,7 +83,8 @@ async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
         
         return RefreshResponse(
             access_token=new_access_token,
-            refresh_token=new_refresh_token
+            refresh_token=new_refresh_token,
+            token_type="bearer"
         )
         
     except jwt.ExpiredSignatureError:

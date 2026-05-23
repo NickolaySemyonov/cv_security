@@ -6,7 +6,7 @@ import time
 import websockets
 from datetime import datetime
 
-CAMERA_ID = 13
+CAMERA_ID = 18
 WEBSOCKET_PORT = 8765
 
 person1_trajectory = [

@@ -1,6 +1,8 @@
 # schemas.py
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from datetime import datetime
+
 
 class UserLogin(BaseModel):
     login: str = Field(..., min_length=3, max_length=100)
@@ -95,3 +97,23 @@ class CameraResponse(CameraBase):
 class HomographyData(BaseModel):
     src_points: List[List[float]]  
     dst_points: List[List[float]]  
+
+
+class ActionResponse(BaseModel):
+    id: int
+    time: datetime
+    title: str
+    text: str
+    user_id: int
+    user_login: str
+    
+    class Config:
+        from_attributes = True
+
+
+class ActionLogsResponse(BaseModel):
+    items: List[ActionResponse]
+    total: int
+    page: int
+    limit: int
+    pages: int
