@@ -117,3 +117,25 @@ class ActionLogsResponse(BaseModel):
     page: int
     limit: int
     pages: int
+
+
+class AreaCreate(BaseModel):
+    type: str = "green" 
+    floor_id: int
+    camera_ids: List[int] = []  
+
+
+class AreaUpdate(BaseModel):
+    type: Optional[str] = None
+    camera_ids: Optional[List[int]] = None
+
+
+class AreaResponse(BaseModel):
+    id: int
+    type: str
+    red_zone: bool
+    floor_id: int
+    cameras: List[CameraResponse] = []
+    
+    class Config:
+        from_attributes = True

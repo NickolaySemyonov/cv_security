@@ -40,3 +40,17 @@
 .read-the-docs {
   color: #888;
 }
+
+
+svg {
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  display: block;
+}
+
+.selectable-zone, .selectable-camera {
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+

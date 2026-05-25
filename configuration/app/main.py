@@ -7,6 +7,7 @@ from floors import router as floors_router
 from cameras import router as cameras_router
 from videos import router as videos_router
 from logs import router as logs_router 
+from areas import router as areas_router
 from security import get_current_user
 from models import User
 import os
@@ -25,6 +26,7 @@ app.include_router(auth_router)
 app.include_router(floors_router)
 app.include_router(cameras_router)
 app.include_router(videos_router)
+app.include_router(areas_router)
 app.include_router(logs_router)
 
 VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
