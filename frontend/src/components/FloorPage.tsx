@@ -4,6 +4,8 @@ import api from '../config/axios';
 import Header from './Header';
 import Footer from './Footer';
 import { ZoneManagementPanel } from './ZoneManagementPanel';
+import ScheduleManager from './ScheduleManager';
+import ZonesListModal from './ZonesListModal';
 import { useSvgRenderer } from '../hooks/useSvgRenderer';
 import { useCameraDetection } from '../hooks/useCameraDetection';
 
@@ -65,7 +67,12 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [selectedCameras, setSelectedCameras] = useState<Set<number>>(new Set());
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [savingZone, setSavingZone] = useState(false);
-  const [showZonesList, setShowZonesList] = useState(false);
+  
+  // Расписание
+  const [scheduleArea, setScheduleArea] = useState<Zone | null>(null);
+  
+  // Модальное окно списка зон
+  const [showZonesModal, setShowZonesModal] = useState(false);
 
   const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useCameraDetection();
   const { getSvgWithAllElements } = useSvgRenderer(
@@ -149,6 +156,23 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+  }, [currentFloor?.id]);
+
+  // Периодическое обновление цветов по расписанию
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (currentFloor?.id) {
+        try {
+          await api.post('/areas/update-colors-by-schedule');
+          await fetchZones();
+          setUpdateTrigger(prev => prev + 1);
+        } catch (error) {
+          console.error('Ошибка обновления цветов:', error);
+        }
+      }
+    }, 30000);
+    
+    return () => clearInterval(interval);
   }, [currentFloor?.id]);
 
   const fetchFloors = async () => {
@@ -257,7 +281,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     setIsSelectingZone(true);
     setSelectedCameras(new Set());
     setEditingZone(null);
-    setShowZonesList(false);
   };
 
   const exitZoneSelectionMode = () => {
@@ -270,7 +293,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     setEditingZone(zone);
     setSelectedCameras(new Set(zone.cameras.map(c => c.id)));
     setIsSelectingZone(true);
-    setShowZonesList(false);
+    setShowZonesModal(false);
   };
 
   const isCameraInAnyZone = (cameraId: number): boolean => {
@@ -372,6 +395,15 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   };
 
+  const handleOpenSchedule = (zone: Zone) => {
+    setScheduleArea(zone);
+  };
+
+  const handleZoneUpdated = async () => {
+    await fetchZones();
+    setUpdateTrigger(prev => prev + 1);
+  };
+
   const handleSvgClick = (e: React.MouseEvent<HTMLDivElement>) => {
     if (!isSelectingZone) return;
     
@@ -384,6 +416,30 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
         toggleCameraSelection(cameraId);
       }
     }
+  };
+
+  // Функция нормализации SVG
+  const normalizeSvg = (svgContent: string): string => {
+    if (!svgContent) return '';
+    
+    let svg = svgContent;
+    
+    const hasViewBox = /viewBox=["'][^"']*["']/.test(svg);
+    
+    if (!hasViewBox) {
+      const widthMatch = svg.match(/width=["']([0-9.]+)/);
+      const heightMatch = svg.match(/height=["']([0-9.]+)/);
+      
+      if (widthMatch && heightMatch) {
+        const width = parseFloat(widthMatch[1]);
+        const height = parseFloat(heightMatch[1]);
+        svg = svg.replace(/<svg/i, `<svg viewBox="0 0 ${width} ${height}"`);
+      } else {
+        svg = svg.replace(/<svg/i, `<svg viewBox="0 0 800 600"`);
+      }
+    }
+    
+    return svg;
   };
 
   const configuredCameras = cameras.filter(c => c.is_configured === true);
@@ -583,18 +639,14 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             selectedCamerasCount={selectedCameras.size}
             savingZone={savingZone}
             editingZone={editingZone}
-            showZonesList={showZonesList}
             onStartCreate={startCreateZone}
             onCancel={exitZoneSelectionMode}
             onSave={saveZone}
-            onToggleList={() => setShowZonesList(!showZonesList)}
-            onEditZone={editZone}
-            onDeleteZone={deleteZone}
-            onToggleType={toggleZoneType}
+            onOpenZonesList={() => setShowZonesModal(true)}
           />
         )}
 
-        {/* Карта */}
+        {/* Карта - без прокрутки */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800">
@@ -611,14 +663,51 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           >
             <div
               ref={mapContainerRef}
-              dangerouslySetInnerHTML={{ __html: getSvgWithAllElements(currentFloor.map) }}
-              style={{ width: '100%', maxWidth: '100%', display: 'flex', justifyContent: 'center' }}
+              dangerouslySetInnerHTML={{ __html: getSvgWithAllElements(normalizeSvg(currentFloor.map)) }}
+              style={{ 
+                maxWidth: '100%',
+                height: 'auto',
+                display: 'flex',
+                justifyContent: 'center'
+              }}
             />
           </div>
         </div>
       </main>
 
       <Footer />
+
+      {/* Модальное окно расписания */}
+      {scheduleArea && (
+        <ScheduleManager
+          areaId={scheduleArea.id}
+          areaName={scheduleArea.type === 'red' ? 'Красная зона' : 'Зелёная зона'}
+          areaType={scheduleArea.type}
+          floorMap={currentFloor.map}
+          zoneCameras={scheduleArea.cameras}
+          onClose={() => setScheduleArea(null)}
+          onScheduleChange={() => {
+            fetchZones();
+            setUpdateTrigger(prev => prev + 1);
+          }}
+          onZoneTypeChange={() => {
+            fetchZones();
+            setUpdateTrigger(prev => prev + 1);
+          }}
+        />
+      )}
+
+      {/* Модальное окно со списком зон */}
+      {showZonesModal && (
+        <ZonesListModal
+          zones={zones}
+          onClose={() => setShowZonesModal(false)}
+          onEditZone={editZone}
+          onDeleteZone={deleteZone}
+          onToggleType={toggleZoneType}
+          onOpenSchedule={handleOpenSchedule}
+        />
+      )}
     </div>
   );
 };

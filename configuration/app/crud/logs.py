@@ -1,4 +1,4 @@
-# backend/app/crud/logs.py (новый файл)
+# backend/app/crud/logs.py 
 from sqlalchemy.orm import Session
 from models import Action
 from datetime import datetime

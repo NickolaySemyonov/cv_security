@@ -1,6 +1,7 @@
 # schemas.py
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
+from enum import Enum
 from datetime import datetime
 
 
@@ -139,3 +140,37 @@ class AreaResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class WeekDay(str, Enum):
+    MONDAY = "Monday"
+    TUESDAY = "Tuesday"
+    WEDNESDAY = "Wednesday"
+    THURSDAY = "Thursday"
+    FRIDAY = "Friday"
+    SATURDAY = "Saturday"
+    SUNDAY = "Sunday"
+
+class ScheduleCreate(BaseModel):
+    start_time: str  # формат "HH:MM"
+    end_time: str    # формат "HH:MM"
+    day: WeekDay
+    area_id: int
+
+class ScheduleResponse(BaseModel):
+    id: int
+    start_time: str
+    end_time: str
+    day: WeekDay
+    area_id: int
+    
+    class Config:
+        from_attributes = True
+
+class ScheduleUpdate(BaseModel):
+    start_time: Optional[str] = None
+    end_time: Optional[str] = None
+    day: Optional[WeekDay] = None
+
+class AreaWithScheduleResponse(AreaResponse):
+    schedule: List[ScheduleResponse] = []

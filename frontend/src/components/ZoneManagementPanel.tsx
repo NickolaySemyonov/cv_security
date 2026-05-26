@@ -1,4 +1,4 @@
-// components/ZoneManagementPanel.tsx
+// frontend/src/components/ZoneManagementPanel.tsx
 import React from 'react';
 
 interface Camera {
@@ -23,14 +23,10 @@ interface ZoneManagementPanelProps {
   selectedCamerasCount: number;
   savingZone: boolean;
   editingZone: Zone | null;
-  showZonesList: boolean;
   onStartCreate: () => void;
   onCancel: () => void;
   onSave: () => void;
-  onToggleList: () => void;
-  onEditZone: (zone: Zone) => void;
-  onDeleteZone: (id: number) => void;
-  onToggleType: (id: number) => void;
+  onOpenZonesList: () => void;
 }
 
 export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
@@ -39,14 +35,10 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   selectedCamerasCount,
   savingZone,
   editingZone,
-  showZonesList,
   onStartCreate,
   onCancel,
   onSave,
-  onToggleList,
-  onEditZone,
-  onDeleteZone,
-  onToggleType
+  onOpenZonesList
 }) => {
   return (
     <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
@@ -61,8 +53,11 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
             <span className="text-xs text-gray-600">Красная зона</span>
           </div>
           {zones.length > 0 && (
-            <button onClick={onToggleList} className="text-xs text-blue-600 hover:text-blue-800">
-              {showZonesList ? 'Скрыть список' : `Показать зоны (${zones.length})`}
+            <button 
+              onClick={onOpenZonesList}
+              className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded-lg hover:bg-blue-200 transition-colors"
+            >
+              📋 Показать зоны ({zones.length})
             </button>
           )}
         </div>
@@ -98,49 +93,6 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
           </div>
         )}
       </div>
-
-      {showZonesList && zones.length > 0 && (
-        <div className="mt-3 pt-3 border-t border-gray-200">
-          <div className="flex flex-wrap gap-2">
-            {zones.map((zone) => (
-              <div
-                key={zone.id}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border ${
-                  zone.type === 'red' 
-                    ? 'bg-red-50 border-red-200' 
-                    : 'bg-green-50 border-green-200'
-                }`}
-              >
-                <span className={`w-2 h-2 rounded-full ${zone.type === 'red' ? 'bg-red-500' : 'bg-green-500'}`} />
-                <span className="text-gray-700">
-                  {zone.type === 'red' ? 'Красная' : 'Зелёная'} ({zone.cameras.length} {zone.cameras.length === 1 ? 'камера' : 'камер'})
-                </span>
-                <button 
-                  onClick={() => onToggleType(zone.id)} 
-                  className="text-xs text-blue-500 hover:text-blue-700 ml-1"
-                  title={zone.type === 'red' ? 'Сделать зелёной' : 'Сделать красной'}
-                >
-                  🔄
-                </button>
-                <button 
-                  onClick={() => onEditZone(zone)} 
-                  className="text-xs text-yellow-500 hover:text-yellow-700"
-                  title="Редактировать"
-                >
-                  ✏️
-                </button>
-                <button 
-                  onClick={() => onDeleteZone(zone.id)} 
-                  className="text-xs text-red-500 hover:text-red-700"
-                  title="Удалить"
-                >
-                  🗑️
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {isSelectingZone && (
         <p className="text-xs text-gray-500 mt-3 pt-2 border-t border-gray-100">

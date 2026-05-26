@@ -1,4 +1,4 @@
-# backend/app/crud/area.py (новый файл)
+# backend/app/crud/area.py
 from sqlalchemy.orm import Session
 from typing import List, Optional
 from models import Area, Camera
