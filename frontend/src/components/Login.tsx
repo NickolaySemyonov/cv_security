@@ -1,4 +1,4 @@
-// src/components/Login.tsx
+// frontend/src/components/Login.tsx
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/axios';
@@ -24,70 +24,142 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
     setError('');
     setLoading(true);
 
+    if (!login.trim()) {
+      setError('Введите логин');
+      setLoading(false);
+      return;
+    }
+    
+    if (!password.trim()) {
+      setError('Введите пароль');
+      setLoading(false);
+      return;
+    }
+
     try {
+      console.log('Отправка запроса на /auth/login...');
+      
       const response = await api.post('/auth/login', {
-        login,
-        password
+        login: login.trim(),
+        password: password
       });
 
-      if (response.data.access_token) {
+      console.log('Ответ от сервера:', response.data);
+
+      if (response.data && response.data.access_token) {
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
         localStorage.setItem('user', JSON.stringify(response.data.user));
         
         onLoginSuccess(response.data.user);
         navigate('/objects');
+      } else {
+        throw new Error('Неверный формат ответа от сервера');
       }
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка входа');
+      console.error('Ошибка входа:', err);
+      
+      // Обрабатываем ошибку правильно
+      let errorMessage = 'Ошибка при входе';
+      
+      if (err.code === 'ERR_NETWORK') {
+        errorMessage = '❌ Неверный логин или пароль';
+      } else if (err.response?.status === 401) {
+        errorMessage = '❌ Неверный логин или пароль';
+      } else if (err.response?.data) {
+        // Проверяем тип ошибки
+        if (typeof err.response.data.detail === 'string') {
+          errorMessage = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          // Это массив ошибок валидации
+          errorMessage = err.response.data.detail.map((e: any) => e.msg || e.message).join(', ');
+        } else if (err.response.data.message) {
+          errorMessage = err.response.data.message;
+        } else {
+          errorMessage = JSON.stringify(err.response.data);
+        }
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <form onSubmit={handleSubmit} className="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
-        <h2 className="text-center text-2xl font-bold text-gray-800 mb-6">
-          Вход в систему
-        </h2>
+    <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      <div className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-md">
+        <div className="text-center mb-8">
+          <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
+            <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+            </svg>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-800">Система мониторинга</h2>
+          <p className="text-gray-500 text-sm mt-1">Войдите в систему</p>
+        </div>
         
         {error && (
-          <div className="bg-red-100 text-red-700 p-3 rounded-lg mb-4 text-center">
+          <div className="bg-red-50 text-red-700 p-3 rounded-xl mb-4 text-sm border border-red-200">
             {error}
           </div>
         )}
         
-        <div className="mb-4">
-          <label className="block text-gray-700 mb-2">Логин:</label>
-          <input
-            type="text"
-            value={login}
-            onChange={(e) => setLogin(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
+        <form onSubmit={handleSubmit}>
+          <div className="mb-4">
+            <label className="block text-gray-700 text-sm font-medium mb-2">Логин</label>
+            <input
+              type="text"
+              value={login}
+              onChange={(e) => setLogin(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              placeholder="Введите логин"
+              disabled={loading}
+              autoComplete="username"
+            />
+          </div>
 
-        <div className="mb-6">
-          <label className="block text-gray-700 mb-2">Пароль:</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:border-blue-500"
-            required
-          />
-        </div>
+          <div className="mb-6">
+            <label className="block text-gray-700 text-sm font-medium mb-2">Пароль</label>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+              placeholder="Введите пароль"
+              disabled={loading}
+              autoComplete="current-password"
+            />
+          </div>
 
-        <button
-          type="submit"
-          disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 rounded-lg font-semibold hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          {loading ? 'Вход...' : 'Войти'}
-        </button>
-      </form>
+          <button
+            type="submit"
+            disabled={loading}
+            className="w-full bg-gradient-to-r from-blue-500 to-blue-600 text-white py-2 rounded-xl font-semibold hover:from-blue-600 hover:to-blue-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <span className="flex items-center justify-center gap-2">
+                <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Вход...
+              </span>
+            ) : (
+              'Войти'
+            )}
+          </button>
+        </form>
+
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <p className="text-xs text-gray-400 text-center">
+            Для тестирования используйте учётные данные из базы данных
+          </p>
+        </div>
+      </div>
     </div>
   );
 };

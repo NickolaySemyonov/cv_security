@@ -1,4 +1,4 @@
-# backend/app/auth.py 
+# backend/app/auth.py (исправленный)
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -6,6 +6,7 @@ import jwt
 import os
 from database import get_db
 from crud.user import user
+from crud.logs import action_logger
 from schemas import UserLogin, TokenResponse, UserResponse, RefreshResponse, RefreshRequest
 
 router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -32,6 +33,12 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     authenticated_user = user.authenticate(db, login_data)
     
     if not authenticated_user:
+        action_logger.log(
+            db, 
+            user_id=0,
+            title="ОШИБКА ВХОДА",
+            text=f"Неудачная попытка входа с логином: {login_data.login}"
+        )
         raise HTTPException(status_code=401, detail="Неверный логин или пароль")
     
     access_token = create_access_token(
@@ -42,13 +49,20 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
         data={"sub": str(authenticated_user.id), "login": authenticated_user.login, "type": "refresh"}
     )
     
-    # ВАЖНО: создаём объект UserResponse явно
-    user_response = UserResponse(
-        id=authenticated_user.id,
-        login=authenticated_user.login
+    action_logger.log(
+        db,
+        user_id=authenticated_user.id,
+        title="УСПЕШНЫЙ ВХОД",
+        text=f"Пользователь {authenticated_user.login} вошел в систему"
     )
     
-    # ВАЖНО: возвращаем объект TokenResponse
+    # ВАЖНО: добавляем поле role!
+    user_response = UserResponse(
+        id=authenticated_user.id,
+        login=authenticated_user.login,
+        role=authenticated_user.role  # Добавлено поле role
+    )
+    
     return TokenResponse(
         access_token=access_token,
         refresh_token=refresh_token,
@@ -59,7 +73,6 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
 
 @router.post("/refresh", response_model=RefreshResponse)
 async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
-    """Обновление access_token с помощью refresh_token"""
     try:
         payload = jwt.decode(request.refresh_token, SECRET_KEY, algorithms=[ALGORITHM])
         

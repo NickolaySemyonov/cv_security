@@ -1,4 +1,3 @@
-// frontend/src/components/ObjectsList.tsx
 import { useState, useEffect, useRef, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/axios';
@@ -12,6 +11,7 @@ import Footer from './Footer';
 interface User {
   id: number;
   login: string;
+  role: string;
 }
 
 interface Floor {
@@ -59,6 +59,8 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  const isAdmin = user?.role === 'admin';
 
   useEffect(() => {
     fetchFloors();
@@ -247,23 +249,25 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8 flex-grow">
         <div className="max-w-[1400px] mx-auto">
           <div className="flex justify-center mb-8">
-            <button
-              onClick={() => {
-                setShowAddForm(!showAddForm);
-                resetForm();
-              }}
-              className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-              Добавить объект
-            </button>
+            {isAdmin && (
+              <button
+                onClick={() => {
+                  setShowAddForm(!showAddForm);
+                  resetForm();
+                }}
+                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+                Добавить объект
+              </button>
+            )}
           </div>
 
           <div className="flex justify-center">
             <div className="w-full max-w-2xl">
-              {showAddForm && (
+              {showAddForm && isAdmin && (
                 <ObjectForm
                   title="Новый объект"
                   onSubmit={handleAddObject}
@@ -294,7 +298,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                 </ObjectForm>
               )}
 
-              {showFloorForm.show && (
+              {showFloorForm.show && isAdmin && (
                 <ObjectForm
                   title={`Добавить этаж к "${showFloorForm.place}"`}
                   onSubmit={handleAddFloor}
@@ -345,6 +349,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                     onCardClick={handleObjectClick}
                     onAddFloor={openAddFloorForm}
                     onDeleteObject={handleDeleteObject}
+                    isAdmin={isAdmin}
                   />
                 ))}
               </div>

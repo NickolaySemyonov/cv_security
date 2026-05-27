@@ -1,4 +1,3 @@
-# backend/app/logs.py
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
@@ -22,8 +21,6 @@ async def get_logs(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить список действий с пагинацией и фильтрацией"""
-    
     query = db.query(Action).join(User, Action.user_id == User.id)
     
     if user_id:
@@ -58,7 +55,7 @@ async def get_logs(
             title=action.title,
             text=action.text_,
             user_id=action.user_id,
-            user_login=user.login if user else "Неизвестный"
+            user_login=user.login if user else "Система"
         ))
     
     return ActionLogsResponse(
@@ -75,10 +72,8 @@ async def get_log_users(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить список пользователей, у которых есть логи"""
     users = db.query(User).join(Action, User.id == Action.user_id).distinct().all()
     return [
         {"id": user.id, "login": user.login} 
         for user in users
     ]
-

@@ -8,7 +8,6 @@ from security import get_current_user
 from crud.schedule import schedule_crud
 from crud.logs import action_logger
 
-# СОЗДАЁМ РОУТЕР - это самая важная строка!
 router = APIRouter(prefix="/schedules", tags=["schedules"])
 
 
@@ -18,7 +17,6 @@ async def get_schedules_by_area(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Получить всё расписание для зоны"""
     area = db.query(Area).filter(Area.id == area_id).first()
     if not area:
         raise HTTPException(404, "Зона не найдена")
@@ -44,7 +42,6 @@ async def create_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Создать интервал в расписании"""
     try:
         schedule = schedule_crud.create(db, schedule_data)
         
@@ -73,7 +70,6 @@ async def update_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Обновить интервал расписания"""
     try:
         schedule = schedule_crud.update(db, schedule_id, schedule_data)
         if not schedule:
@@ -103,7 +99,6 @@ async def delete_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Удалить интервал из расписания"""
     schedule = schedule_crud.get_by_id(db, schedule_id)
     if not schedule:
         raise HTTPException(404, "Интервал не найден")
@@ -127,7 +122,6 @@ async def clear_area_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    """Очистить всё расписание для зоны"""
     area = db.query(Area).filter(Area.id == area_id).first()
     if not area:
         raise HTTPException(404, "Зона не найдена")

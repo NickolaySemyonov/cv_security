@@ -1,9 +1,7 @@
-# schemas.py
 from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
-from enum import Enum
 from datetime import datetime
-
+from enum import Enum
 
 class UserLogin(BaseModel):
     login: str = Field(..., min_length=3, max_length=100)
@@ -12,9 +10,17 @@ class UserLogin(BaseModel):
 class UserResponse(BaseModel):
     id: int
     login: str
+    role: str
     
     class Config:
         from_attributes = True
+
+class UserCreate(BaseModel):
+    login: str = Field(..., min_length=3, max_length=100)
+    password: str = Field(..., min_length=4)
+
+class UserRoleUpdate(BaseModel):
+    role: str = Field(..., pattern="^(admin|operator)$")
 
 class TokenResponse(BaseModel):
     access_token: str
@@ -99,49 +105,6 @@ class HomographyData(BaseModel):
     src_points: List[List[float]]  
     dst_points: List[List[float]]  
 
-
-class ActionResponse(BaseModel):
-    id: int
-    time: datetime
-    title: str
-    text: str
-    user_id: int
-    user_login: str
-    
-    class Config:
-        from_attributes = True
-
-
-class ActionLogsResponse(BaseModel):
-    items: List[ActionResponse]
-    total: int
-    page: int
-    limit: int
-    pages: int
-
-
-class AreaCreate(BaseModel):
-    type: str = "green" 
-    floor_id: int
-    camera_ids: List[int] = []  
-
-
-class AreaUpdate(BaseModel):
-    type: Optional[str] = None
-    camera_ids: Optional[List[int]] = None
-
-
-class AreaResponse(BaseModel):
-    id: int
-    type: str
-    red_zone: bool
-    floor_id: int
-    cameras: List[CameraResponse] = []
-    
-    class Config:
-        from_attributes = True
-
-
 class WeekDay(str, Enum):
     MONDAY = "Monday"
     TUESDAY = "Tuesday"
@@ -152,8 +115,8 @@ class WeekDay(str, Enum):
     SUNDAY = "Sunday"
 
 class ScheduleCreate(BaseModel):
-    start_time: str  # формат "HH:MM"
-    end_time: str    # формат "HH:MM"
+    start_time: str
+    end_time: str
     day: WeekDay
     area_id: int
 
@@ -172,5 +135,39 @@ class ScheduleUpdate(BaseModel):
     end_time: Optional[str] = None
     day: Optional[WeekDay] = None
 
-class AreaWithScheduleResponse(AreaResponse):
-    schedule: List[ScheduleResponse] = []
+class AreaCreate(BaseModel):
+    type: str = "green"
+    floor_id: int
+    camera_ids: List[int] = []
+
+class AreaUpdate(BaseModel):
+    type: Optional[str] = None
+    camera_ids: Optional[List[int]] = None
+
+class AreaResponse(BaseModel):
+    id: int
+    type: str
+    disabled: bool
+    floor_id: int
+    cameras: List[CameraResponse] = []
+    
+    class Config:
+        from_attributes = True
+
+class ActionResponse(BaseModel):
+    id: int
+    time: datetime
+    title: str
+    text: str
+    user_id: int
+    user_login: str
+    
+    class Config:
+        from_attributes = True
+
+class ActionLogsResponse(BaseModel):
+    items: List[ActionResponse]
+    total: int
+    page: int
+    limit: int
+    pages: int

@@ -28,6 +28,7 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     login: Mapped[str] = mapped_column(String(100), nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False, default='operator')
 
     action: Mapped[list['Action']] = relationship('Action', back_populates='user')
 
@@ -103,13 +104,14 @@ class Area(Base):
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    red_zone: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    disabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     type: Mapped[str] = mapped_column(String(6), nullable=False, default='green')
     floor_id: Mapped[int] = mapped_column(Integer, nullable=False)
 
     floor: Mapped['Floor'] = relationship('Floor', back_populates='areas')
     cameras: Mapped[list['Camera']] = relationship('Camera', back_populates='area')
     schedule: Mapped[list['Schedule']] = relationship('Schedule', back_populates='area')
+
 
 class Schedule(Base):
     __tablename__ = 'schedule'

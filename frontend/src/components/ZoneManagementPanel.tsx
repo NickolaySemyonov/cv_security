@@ -1,4 +1,3 @@
-// frontend/src/components/ZoneManagementPanel.tsx
 import React from 'react';
 
 interface Camera {
@@ -12,6 +11,7 @@ interface Camera {
 interface Zone {
   id: number;
   type: string;
+  disabled: boolean;
   red_zone: boolean;
   floor_id: number;
   cameras: Camera[];
@@ -27,6 +27,7 @@ interface ZoneManagementPanelProps {
   onCancel: () => void;
   onSave: () => void;
   onOpenZonesList: () => void;
+  isAdmin: boolean;
 }
 
 export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
@@ -38,7 +39,8 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   onStartCreate,
   onCancel,
   onSave,
-  onOpenZonesList
+  onOpenZonesList,
+  isAdmin
 }) => {
   return (
     <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
@@ -62,7 +64,8 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
           )}
         </div>
         
-        {!isSelectingZone ? (
+        {/* Кнопка "Выделить зону" - только для админа */}
+        {isAdmin && !isSelectingZone && (
           <button 
             onClick={onStartCreate} 
             className="bg-purple-500 text-white px-4 py-2 rounded-lg hover:bg-purple-600 transition-colors flex items-center gap-2 text-sm"
@@ -72,7 +75,10 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
             </svg>
             Выделить зону
           </button>
-        ) : (
+        )}
+
+        {/* Режим выделения зоны - только для админа */}
+        {isAdmin && isSelectingZone && (
           <div className="flex items-center gap-3">
             <span className="text-sm text-blue-600 font-medium">
               Выбрано камер: {selectedCamerasCount}

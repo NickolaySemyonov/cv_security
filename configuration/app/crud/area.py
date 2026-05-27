@@ -7,17 +7,15 @@ from schemas import AreaCreate, AreaUpdate
 class CRUDArea:
     @staticmethod
     def create(db: Session, area_data: AreaCreate) -> Area:
-        """Создать новую зону"""
         area = Area(
             type=area_data.type,
-            red_zone=area_data.type == "red",
+            disabled=(area_data.type == "green"),  # green = охрана выключена
             floor_id=area_data.floor_id
         )
         db.add(area)
         db.commit()
         db.refresh(area)
         
-        # Добавляем камеры в зону
         if area_data.camera_ids:
             cameras = db.query(Camera).filter(Camera.id.in_(area_data.camera_ids)).all()
             for camera in cameras:
@@ -42,7 +40,9 @@ class CRUDArea:
         
         if area_data.type:
             area.type = area_data.type
-            area.red_zone = area_data.type == "red"
+            # При смене типа сбрасываем ручное отключение
+            if area.disabled:
+                area.disabled = False
         
         if area_data.camera_ids is not None:
             # Отвязываем все камеры от этой зоны

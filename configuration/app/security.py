@@ -1,4 +1,3 @@
-# security.py
 import os
 import jwt
 from fastapi import Depends, HTTPException
@@ -6,6 +5,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from database import get_db
 from crud.user import user
+from models import User
 
 security = HTTPBearer()
 SECRET_KEY = os.getenv("SECRET_KEY", "gagara")
@@ -30,4 +30,16 @@ def get_current_user(
     if current_user is None:
         raise HTTPException(status_code=401, detail="Пользователь не найден")
     
+    return current_user
+
+
+def require_admin(current_user: User = Depends(get_current_user)):
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Требуются права администратора.")
+    return current_user
+
+
+def require_operator_or_admin(current_user: User = Depends(get_current_user)):
+    if current_user.role not in ['admin', 'operator']:
+        raise HTTPException(status_code=403, detail="Доступ запрещён.")
     return current_user

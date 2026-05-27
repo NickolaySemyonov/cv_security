@@ -20,6 +20,7 @@ interface Floor {
 interface User {
   id: number;
   login: string;
+  role: string;
 }
 
 interface Camera {
@@ -34,6 +35,7 @@ interface Camera {
 interface Zone {
   id: number;
   type: string;
+  disabled: boolean;
   red_zone: boolean;
   floor_id: number;
   cameras: Camera[];
@@ -62,17 +64,14 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [initialized, setInitialized] = useState(false);
   const [floorCameraIds, setFloorCameraIds] = useState<number[]>([]);
   
-  // Режим выделения зон
   const [isSelectingZone, setIsSelectingZone] = useState(false);
   const [selectedCameras, setSelectedCameras] = useState<Set<number>>(new Set());
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
   const [savingZone, setSavingZone] = useState(false);
-  
-  // Расписание
   const [scheduleArea, setScheduleArea] = useState<Zone | null>(null);
-  
-  // Модальное окно списка зон
   const [showZonesModal, setShowZonesModal] = useState(false);
+
+  const isAdmin = user?.role === 'admin';
 
   const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useCameraDetection();
   const { getSvgWithAllElements } = useSvgRenderer(
@@ -158,7 +157,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     return () => window.removeEventListener('focus', handleFocus);
   }, [currentFloor?.id]);
 
-  // Периодическое обновление цветов по расписанию
   useEffect(() => {
     const interval = setInterval(async () => {
       if (currentFloor?.id) {
@@ -276,7 +274,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     window.location.href = '/objects';
   };
 
-  // Функции для работы с зонами
   const startCreateZone = () => {
     setIsSelectingZone(true);
     setSelectedCameras(new Set());
@@ -310,7 +307,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     
     if (editingZone) {
       if (cameraInZone && cameraZone?.id !== editingZone.id) {
-        alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!\n\nСначала удалите камеру из существующей зоны или удалите зону целиком.`);
+        alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`);
         return;
       }
       const newSelected = new Set(selectedCameras);
@@ -324,7 +321,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
     
     if (cameraInZone) {
-      alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!\n\nКамера не может быть в двух зонах одновременно.`);
+      alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`);
       return;
     }
     
@@ -346,7 +343,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     if (!editingZone) {
       const camerasInOtherZones = Array.from(selectedCameras).filter(camId => isCameraInAnyZone(camId));
       if (camerasInOtherZones.length > 0) {
-        alert(`❌ Невозможно создать зону!\n\nНекоторые камеры уже принадлежат другим зонам.\n\nСначала удалите их из существующих зон.`);
+        alert(`❌ Невозможно создать зону!\n\nНекоторые камеры уже принадлежат другим зонам.`);
         return;
       }
     }
@@ -386,15 +383,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   };
 
-  const toggleZoneType = async (zoneId: number) => {
-    try {
-      await api.post(`/areas/${zoneId}/toggle-type`);
-      await fetchZones();
-    } catch (error) {
-      console.error('Ошибка изменения типа зоны:', error);
-    }
-  };
-
   const handleOpenSchedule = (zone: Zone) => {
     setScheduleArea(zone);
   };
@@ -418,7 +406,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
   };
 
-  // Функция нормализации SVG
   const normalizeSvg = (svgContent: string): string => {
     if (!svgContent) return '';
     
@@ -578,11 +565,13 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
                 <span className="text-sm">Назад</span>
               </button>
               
-              <button onClick={handleDeleteFloor} className="text-red-600 hover:text-red-800" title="Удалить этаж">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+              {isAdmin && (
+                <button onClick={handleDeleteFloor} className="text-red-600 hover:text-red-800" title="Удалить этаж">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              )}
             </div>
             
             <div className="flex items-center gap-1">
@@ -608,17 +597,19 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             </div>
             
             <div className="flex gap-2">
-              <button onClick={handleSetup}
-                className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                  currentFloor.is_calibrated ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'
-                }`}>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                </svg>
-                Калибровка
-              </button>
+              {isAdmin && (
+                <button onClick={handleSetup}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
+                    currentFloor.is_calibrated ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'
+                  }`}>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                  </svg>
+                  Калибровка
+                </button>
+              )}
 
-              {currentFloor.is_calibrated && (
+              {isAdmin && currentFloor.is_calibrated && (
                 <button onClick={handleAddCamera}
                   className="bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 flex items-center gap-1 text-sm">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -631,8 +622,8 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           </div>
         </div>
 
-        {/* Панель управления зонами */}
-        {currentFloor.is_calibrated && hasConfiguredCameras && (
+        {/* Для АДМИНА - полная панель управления зонами */}
+        {isAdmin && currentFloor.is_calibrated && hasConfiguredCameras && (
           <ZoneManagementPanel
             zones={zones}
             isSelectingZone={isSelectingZone}
@@ -643,10 +634,35 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             onCancel={exitZoneSelectionMode}
             onSave={saveZone}
             onOpenZonesList={() => setShowZonesModal(true)}
+            isAdmin={isAdmin}
           />
         )}
 
-        {/* Карта - без прокрутки */}
+        {/* Для ОПЕРАТОРА - только кнопка "Показать зоны" */}
+        {!isAdmin && currentFloor.is_calibrated && hasConfiguredCameras && zones.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-green-500" />
+                  <span className="text-xs text-gray-600">Зелёная зона</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-red-500" />
+                  <span className="text-xs text-gray-600">Красная зона</span>
+                </div>
+              </div>
+              <button 
+                onClick={() => setShowZonesModal(true)}
+                className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors"
+              >
+                📋 Показать зоны ({zones.length})
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Карта */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="p-4 border-b border-gray-100">
             <h2 className="text-lg font-semibold text-gray-800">
@@ -677,12 +693,12 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
       <Footer />
 
-      {/* Модальное окно расписания */}
       {scheduleArea && (
         <ScheduleManager
           areaId={scheduleArea.id}
           areaName={scheduleArea.type === 'red' ? 'Красная зона' : 'Зелёная зона'}
           areaType={scheduleArea.type}
+          areaDisabled={scheduleArea.disabled}
           floorMap={currentFloor.map}
           zoneCameras={scheduleArea.cameras}
           onClose={() => setScheduleArea(null)}
@@ -694,18 +710,22 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             fetchZones();
             setUpdateTrigger(prev => prev + 1);
           }}
+          onBackToList={() => {
+            setScheduleArea(null);
+            setShowZonesModal(true);
+          }}
+          isAdmin={isAdmin}
         />
       )}
 
-      {/* Модальное окно со списком зон */}
       {showZonesModal && (
         <ZonesListModal
           zones={zones}
           onClose={() => setShowZonesModal(false)}
           onEditZone={editZone}
           onDeleteZone={deleteZone}
-          onToggleType={toggleZoneType}
           onOpenSchedule={handleOpenSchedule}
+          isAdmin={isAdmin}
         />
       )}
     </div>

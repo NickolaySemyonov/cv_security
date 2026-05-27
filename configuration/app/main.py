@@ -8,6 +8,7 @@ from videos import router as videos_router
 from logs import router as logs_router 
 from areas import router as areas_router
 from schedules import router as schedules_router
+from users import router as users_router
 from security import get_current_user
 from models import User
 import os
@@ -34,6 +35,7 @@ app.include_router(videos_router)
 app.include_router(areas_router)
 app.include_router(logs_router)
 app.include_router(schedules_router)
+app.include_router(users_router)
 
 
 VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
@@ -50,9 +52,8 @@ async def health_check():
 
 
 async def schedule_color_updater():
-    """Фоновая задача для обновления цветов зон каждую секунду"""
     while True:
-        await asyncio.sleep(1)  # Проверяем КАЖДУЮ СЕКУНДУ
+        await asyncio.sleep(1)
         
         try:
             db = SessionLocal()
@@ -62,17 +63,15 @@ async def schedule_color_updater():
             current_day = days_en[now.weekday()]
             current_hour = now.hour
             current_minute = now.minute
-            current_second = now.second
-            current_total_seconds = current_hour * 3600 + current_minute * 60 + current_second
-            
-            # Логируем только каждую 30-ю секунду, чтобы не заспамить консоль
-            if current_second % 30 == 0:
-                print(f"[{now.strftime('%H:%M:%S')}] 🔍 Проверка расписания...")
+            current_total = current_hour * 60 + current_minute
             
             areas = db.query(Area).all()
             updated_count = 0
             
             for area in areas:
+                if area.disabled:
+                    continue
+                
                 schedules = db.query(Schedule).filter(
                     Schedule.area_id == area.id,
                     Schedule.day == current_day
@@ -88,33 +87,40 @@ async def schedule_color_updater():
                     if hasattr(end, 'tzinfo') and end.tzinfo is not None:
                         end = end.replace(tzinfo=None)
                     
-                    start_seconds = start.hour * 3600 + start.minute * 60 + start.second
-                    end_seconds = end.hour * 3600 + end.minute * 60 + end.second
+                    start_total = start.hour * 60 + start.minute
+                    end_total = end.hour * 60 + end.minute
                     
-                    if start_seconds <= current_total_seconds <= end_seconds:
+                    if start_total <= current_total <= end_total:
                         is_active = True
                         break
                 
                 target_type = "red" if is_active else "green"
                 
                 if area.type != target_type:
+                    old_type = area.type
                     area.type = target_type
-                    area.red_zone = (target_type == "red")
                     updated_count += 1
-                    print(f"[{now.strftime('%H:%M:%S')}] 🔄 Зона #{area.id}: -> {target_type}")
+                    
+                    try:
+                        action_logger.log(
+                            db,
+                            user_id=1,
+                            title="АВТОМАТИЧЕСКАЯ СМЕНА ЦВЕТА ЗОНЫ",
+                            text=f"Зона #{area.id} автоматически изменена с {old_type} на {target_type} по расписанию"
+                        )
+                    except:
+                        pass
             
             if updated_count > 0:
                 db.commit()
-                print(f"[{now.strftime('%H:%M:%S')}] ✅ Обновлено {updated_count} зон")
             
             db.close()
         except Exception as e:
-            print(f"❌ Ошибка обновления цветов зон: {e}")
+            print(f"Ошибка обновления цветов зон: {e}")
 
 
 @app.on_event("startup")
 async def startup_event():
-    """Запуск фоновой задачи при старте сервера"""
     print("\n" + "="*50)
     print("🚀 ЗАПУСК СЕРВЕРА")
     print("="*50)
@@ -125,5 +131,4 @@ async def startup_event():
 
 @app.on_event("shutdown")
 async def shutdown_event():
-    """Остановка сервера"""
     print("\n🛑 Сервер остановлен")

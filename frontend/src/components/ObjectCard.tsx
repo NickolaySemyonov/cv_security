@@ -12,6 +12,7 @@ interface ObjectCardProps {
   onCardClick: (place: string) => void;
   onAddFloor: (place: string, floorsCount: number) => void;
   onDeleteObject: (place: string) => void;
+  isAdmin: boolean;
 }
 
 const ObjectCard = ({ 
@@ -19,7 +20,8 @@ const ObjectCard = ({
   floorsCount, 
   onCardClick, 
   onAddFloor, 
-  onDeleteObject
+  onDeleteObject,
+  isAdmin
 }: ObjectCardProps) => {
   const handleDeleteObject = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -32,15 +34,17 @@ const ObjectCard = ({
     <div className="bg-white rounded-2xl shadow-lg overflow-hidden border border-gray-100 transition-all duration-200 hover:shadow-xl relative group">
       <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
       
-      <button
-        onClick={handleDeleteObject}
-        className="absolute top-2 right-2 p-2 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 z-10"
-        title="Удалить объект"
-      >
-        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-        </svg>
-      </button>
+      {isAdmin && (
+        <button
+          onClick={handleDeleteObject}
+          className="absolute top-2 right-2 p-2 bg-red-100 text-red-600 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-200 z-10"
+          title="Удалить объект"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      )}
       
       <div 
         onClick={() => onCardClick(place)}
@@ -58,12 +62,14 @@ const ObjectCard = ({
       </div>
       
       <div className="px-4 pb-4">
-        <button
-          onClick={() => onAddFloor(place, floorsCount)}
-          className="w-full text-sm bg-gray-50 text-blue-600 py-2 rounded-xl hover:bg-blue-50 transition-colors"
-        >
-          + Добавить этаж
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => onAddFloor(place, floorsCount)}
+            className="w-full text-sm bg-gray-50 text-blue-600 py-2 rounded-xl hover:bg-blue-50 transition-colors"
+          >
+            + Добавить этаж
+          </button>
+        )}
       </div>
     </div>
   );

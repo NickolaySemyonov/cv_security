@@ -1,8 +1,7 @@
-# crud/user.py
 import bcrypt
 from sqlalchemy.orm import Session
 from models import User
-from schemas import UserLogin
+from schemas import UserLogin, UserCreate
 
 class CRUDUser:
     @staticmethod
@@ -15,7 +14,6 @@ class CRUDUser:
     
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Проверка пароля"""
         try:
             return bcrypt.checkpw(
                 plain_password.encode('utf-8'),
@@ -33,5 +31,31 @@ class CRUDUser:
         if not CRUDUser.verify_password(login_data.password, user.password_hash):
             return None
         return user
+    
+    @staticmethod
+    def create_operator(db: Session, user_data: UserCreate) -> User:
+        hashed = bcrypt.hashpw(user_data.password.encode('utf-8'), bcrypt.gensalt())
+        user = User(
+            login=user_data.login,
+            password_hash=hashed.decode('utf-8'),
+            role='operator'
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        return user
+    
+    @staticmethod
+    def get_all_operators(db: Session) -> list[User]:
+        return db.query(User).filter(User.role == 'operator').all()
+    
+    @staticmethod
+    def delete_user(db: Session, user_id: int) -> bool:
+        user = CRUDUser.get_by_id(db, user_id)
+        if not user or user.role == 'admin':
+            return False
+        db.delete(user)
+        db.commit()
+        return True
 
 user = CRUDUser()
