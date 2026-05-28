@@ -1,6 +1,7 @@
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from auth import router as auth_router
 from floors import router as floors_router
 from cameras import router as cameras_router
@@ -22,7 +23,7 @@ app = FastAPI(title="CV Security API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -41,6 +42,18 @@ app.include_router(users_router)
 VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
 os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
 app.mount("/static/videos", StaticFiles(directory=VIDEOS_DIRECTORY), name="videos")
+
+# Добавляем эндпоинт для видео с правильными заголовками
+@app.get("/video-stream")
+async def video_stream(url: str):
+    """Прокси для видео потоков с правильными заголовками"""
+    import httpx
+    async with httpx.AsyncClient() as client:
+        try:
+            response = await client.get(url)
+            return Response(content=response.content, media_type="video/mp4")
+        except:
+            raise HTTPException(404, "Видео не найдено")
 
 @app.get("/protected")
 async def protected_route(current_user: User = Depends(get_current_user)):
@@ -104,12 +117,12 @@ async def schedule_color_updater():
                     try:
                         action_logger.log(
                             db,
-                            user_id=1,
+                            user_id=0,
                             title="АВТОМАТИЧЕСКАЯ СМЕНА ЦВЕТА ЗОНЫ",
                             text=f"Зона #{area.id} автоматически изменена с {old_type} на {target_type} по расписанию"
                         )
-                    except:
-                        pass
+                    except Exception as log_err:
+                        print(f"Ошибка логирования: {log_err}")
             
             if updated_count > 0:
                 db.commit()
@@ -117,6 +130,11 @@ async def schedule_color_updater():
             db.close()
         except Exception as e:
             print(f"Ошибка обновления цветов зон: {e}")
+            try:
+                db.rollback()
+                db.close()
+            except:
+                pass
 
 
 @app.on_event("startup")
@@ -125,7 +143,7 @@ async def startup_event():
     print("🚀 ЗАПУСК СЕРВЕРА")
     print("="*50)
     asyncio.create_task(schedule_color_updater())
-    print("✅ Фоновая задача запущена (проверка каждую секунду)")
+    print("✅ Фоновая задача запущена")
     print("="*50 + "\n")
 
 

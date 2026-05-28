@@ -1,4 +1,3 @@
-# backend/app/crud/logs.py
 from sqlalchemy.orm import Session
 from models import Action
 from datetime import datetime
@@ -7,6 +6,11 @@ class CRUDAction:
     @staticmethod
     def log(db: Session, user_id: int, title: str, text: str) -> Action:
         """Создать запись лога"""
+        from models import User
+        user_exists = db.query(User).filter(User.id == user_id).first()
+        if not user_exists and user_id != 0:
+            user_id = 0
+        
         action = Action(
             user_id=user_id,
             title=title,

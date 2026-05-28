@@ -6,13 +6,6 @@ interface DetectionPoint {
   y: number;
   cameraId: number;
   timestamp: number;
-  personId?: number;
-}
-
-interface DetectionMessage {
-  camera_id: number;
-  translated_points: number[][];
-  timestamp: number;
 }
 
 interface Camera {
@@ -21,31 +14,25 @@ interface Camera {
   visible_zone: { vertices: number[][] };
 }
 
-const FRAME_WIDTH = 640;
-const FRAME_HEIGHT = 480;
-
 let ws: WebSocket | null = null;
 let globalDetections: DetectionPoint[] = [];
 let subscribers: ((detections: DetectionPoint[]) => void)[] = [];
-let cameraInfoCache: Map<number, { zone: { minX: number; maxX: number; minY: number; maxY: number }; position: { x: number; y: number } } | null> = new Map();
-let personPositions: Map<string, DetectionPoint> = new Map();
+let cameraInfoCache: Map<number, { minX: number; maxX: number; minY: number; maxY: number } | null> = new Map();
 let lastRenderTime = 0;
 const RENDER_INTERVAL = 50;
 
-// Хранилище ID камер на текущем этаже
 let currentFloorCameraIds: Set<number> = new Set();
 
-async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number; maxX: number; minY: number; maxY: number }; position: { x: number; y: number } } | null> {
+async function loadCameraInfo(cameraId: number): Promise<{ minX: number; maxX: number; minY: number; maxY: number } | null> {
   if (cameraInfoCache.has(cameraId)) {
-    return cameraInfoCache.get(cameraId) || null;
+    return cameraInfoCache.get(cameraId);
   }
   
   try {
     const response = await api.get<Camera>(`/cameras/${cameraId}`);
     const vertices = response.data.visible_zone?.vertices;
-    const position = response.data.position;
     
-    if (vertices && vertices.length >= 4 && position) {
+    if (vertices && vertices.length >= 4) {
       const xs = vertices.map(p => p[0]);
       const ys = vertices.map(p => p[1]);
       const zone = {
@@ -54,9 +41,8 @@ async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number;
         minY: Math.min(...ys),
         maxY: Math.max(...ys)
       };
-      const info = { zone, position };
-      cameraInfoCache.set(cameraId, info);
-      return info;
+      cameraInfoCache.set(cameraId, zone);
+      return zone;
     }
   } catch (error) {
     console.error(`Ошибка загрузки камеры ${cameraId}:`, error);
@@ -66,72 +52,15 @@ async function loadCameraInfo(cameraId: number): Promise<{ zone: { minX: number;
   return null;
 }
 
-function transformPointByCameraPosition(
+function scaleToZone(
   relX: number,
   relY: number,
-  zoneBounds: { minX: number; maxX: number; minY: number; maxY: number },
-  cameraPos: { x: number; y: number }
+  zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }
 ): { x: number; y: number } {
   const { minX, maxX, minY, maxY } = zoneBounds;
-  
-  const distToTop = Math.abs(cameraPos.y - minY);
-  const distToBottom = Math.abs(cameraPos.y - maxY);
-  const distToLeft = Math.abs(cameraPos.x - minX);
-  const distToRight = Math.abs(cameraPos.x - maxX);
-  
-  const minDist = Math.min(distToTop, distToBottom, distToLeft, distToRight);
-  
-  let edgeStart: { x: number; y: number };
-  let edgeEnd: { x: number; y: number };
-  let isHorizontal: boolean;
-  
-  if (minDist === distToTop) {
-    edgeStart = { x: minX, y: minY };
-    edgeEnd = { x: maxX, y: minY };
-    isHorizontal = true;
-  } else if (minDist === distToBottom) {
-    edgeStart = { x: minX, y: maxY };
-    edgeEnd = { x: maxX, y: maxY };
-    isHorizontal = true;
-  } else if (minDist === distToLeft) {
-    edgeStart = { x: minX, y: minY };
-    edgeEnd = { x: minX, y: maxY };
-    isHorizontal = false;
-  } else {
-    edgeStart = { x: maxX, y: minY };
-    edgeEnd = { x: maxX, y: maxY };
-    isHorizontal = false;
-  }
-  
-  let oppositeStart: { x: number; y: number };
-  let oppositeEnd: { x: number; y: number };
-  
-  if (isHorizontal) {
-    oppositeStart = { x: minX, y: minY };
-    oppositeEnd = { x: minX, y: maxY };
-  } else {
-    oppositeStart = { x: minX, y: minY };
-    oppositeEnd = { x: maxX, y: minY };
-  }
-  
-  const t1 = isHorizontal ? relX : relY;
-  const cameraEdgePoint = {
-    x: edgeStart.x + t1 * (edgeEnd.x - edgeStart.x),
-    y: edgeStart.y + t1 * (edgeEnd.y - edgeStart.y)
-  };
-  
-  const t2 = isHorizontal ? relY : relX;
-  const oppositePoint = {
-    x: oppositeStart.x + t2 * (oppositeEnd.x - oppositeStart.x),
-    y: oppositeStart.y + t2 * (oppositeEnd.y - oppositeStart.y)
-  };
-  
-  const depth = isHorizontal ? relY : relX;
-  
-  return {
-    x: cameraEdgePoint.x + depth * (oppositePoint.x - cameraEdgePoint.x),
-    y: cameraEdgePoint.y + depth * (oppositePoint.y - cameraEdgePoint.y)
-  };
+  const x = minX + relX * (maxX - minX);
+  const y = minY + relY * (maxY - minY);
+  return { x, y };
 }
 
 function notifySubscribers() {
@@ -142,46 +71,56 @@ function notifySubscribers() {
   }
 }
 
-async function processDetection(message: DetectionMessage) {
-  if (!currentFloorCameraIds.has(message.camera_id)) {
-    console.log(`❌ Камера ${message.camera_id} не принадлежит текущему этажу, игнорируем`);
+async function processDetection(data: any) {
+  console.log('📨 Получено сообщение:', data);
+  
+  // Поддержка формата { type: 'detection', message: {...} }
+  let detectionData = data;
+  if (data.type === 'detection' && data.message) {
+    detectionData = data.message;
+  }
+  
+  // Проверяем наличие нужных полей
+  if (detectionData.camera_id === undefined || !detectionData.translated_points) {
+    console.log('⚠️ Неизвестный формат сообщения:', data);
     return;
   }
   
-  const cameraInfo = await loadCameraInfo(message.camera_id);
-  if (!cameraInfo) return;
+  const cameraId = detectionData.camera_id;
+  const points = detectionData.translated_points;
+  const timestamp = detectionData.timestamp || Date.now() / 1000;
   
-  const now = Date.now() / 1000;
+  console.log(`📹 Камера ${cameraId}, точек: ${points.length}`);
   
-  message.translated_points.forEach((point, index) => {
-    const relX = point[0] / FRAME_WIDTH;
-    const relY = point[1] / FRAME_HEIGHT;
+  if (!currentFloorCameraIds.has(cameraId)) {
+    console.log(`❌ Камера ${cameraId} не принадлежит текущему этажу`);
+    return;
+  }
+  
+  const cameraInfo = await loadCameraInfo(cameraId);
+  if (!cameraInfo) {
+    console.log(`❌ Нет информации о зоне камеры ${cameraId}`);
+    return;
+  }
+  
+  const newDetections: DetectionPoint[] = [];
+  
+  points.forEach((point: number[], index: number) => {
+    const relX = point[0];
+    const relY = point[1];
     
-    const absolute = transformPointByCameraPosition(
-      relX, relY,
-      cameraInfo.zone,
-      cameraInfo.position
-    );
+    const absolute = scaleToZone(relX, relY, cameraInfo);
     
-    const personId = index;
-    const key = `${message.camera_id}_${personId}`;
-    
-    personPositions.set(key, {
+    newDetections.push({
       x: absolute.x,
       y: absolute.y,
-      cameraId: message.camera_id,
-      personId: personId,
-      timestamp: now
+      cameraId: cameraId,
+      timestamp: timestamp
     });
   });
   
-  for (const [key, point] of personPositions.entries()) {
-    if (point.timestamp < now - 2) {
-      personPositions.delete(key);
-    }
-  }
-  
-  globalDetections = Array.from(personPositions.values());
+  globalDetections = newDetections;
+  console.log(`✅ Точки: ${globalDetections.length}`);
   notifySubscribers();
 }
 
@@ -222,21 +161,17 @@ export function useCameraDetection() {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
     
-    personPositions.clear();
     globalDetections = [];
     setDetections([]);
     
     console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
-    console.log(`📌 Текущий Set камер:`, Array.from(currentFloorCameraIds));
   };
 
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
-    // Просто возвращаем все детекции, так как processDetection уже отфильтровал
     return detections;
   };
 
   const clearDetections = () => {
-    personPositions.clear();
     globalDetections = [];
     setDetections([]);
     console.log('🧹 Детекции очищены');

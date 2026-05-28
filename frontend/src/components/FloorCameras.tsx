@@ -1,4 +1,3 @@
-// frontend/src/components/FloorCameras.tsx
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../config/axios';
@@ -17,15 +16,16 @@ interface Floor {
 interface User {
   id: number;
   login: string;
+  role: string;
 }
 
 interface Camera {
   id: number;
   position: { x: number; y: number };
   visible_zone: { vertices: number[][] };
-  is_active: boolean;
   is_configured?: boolean;
   points_of_homography?: any;
+  rotation?: number;
 }
 
 interface FloorCamerasProps {
@@ -42,6 +42,14 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   const [showCameraDrawer, setShowCameraDrawer] = useState(false);
   const [showHomographyCalibration, setShowHomographyCalibration] = useState(false);
   const [selectedCameraForCalibration, setSelectedCameraForCalibration] = useState<Camera | null>(null);
+
+  const isAdmin = user?.role === 'admin';
+
+  useEffect(() => {
+    if (!isAdmin) {
+      navigate('/objects');
+    }
+  }, [isAdmin, navigate]);
 
   useEffect(() => {
     fetchFloor();
@@ -151,6 +159,10 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
     );
   }
 
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
       <Header user={user} onLogout={onLogout} title={`Добавление камер: ${floor?.place} - Этаж ${floor?.number}`} />
@@ -217,6 +229,11 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
                           <span className="text-sm text-gray-500">
                             Позиция: ({Math.round(camera.position.x)}, {Math.round(camera.position.y)})
                           </span>
+                          {camera.rotation !== undefined && camera.rotation !== null && (
+                            <span className="text-sm text-blue-500">
+                              Угол: {Math.round(camera.rotation * 180 / Math.PI)}°
+                            </span>
+                          )}
                           {camera.is_configured ? (
                             <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -269,18 +286,19 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       <Footer />
 
       {showHomographyCalibration && selectedCameraForCalibration && (
-      <HomographyCalibration
-        cameraId={selectedCameraForCalibration.id}
-        cameraZone={selectedCameraForCalibration.visible_zone.vertices}
-        cameraPosition={selectedCameraForCalibration.position}
-        svgContent={floor?.map || ''}  // ← передаём SVG карту
-        onSave={() => {
-          setShowHomographyCalibration(false);
-          fetchCameras();
-        }}
-        onCancel={() => setShowHomographyCalibration(false)}
-      />
-    )}
+        <HomographyCalibration
+          cameraId={selectedCameraForCalibration.id}
+          cameraZone={selectedCameraForCalibration.visible_zone.vertices}
+          cameraPosition={selectedCameraForCalibration.position}
+          svgContent={floor?.map || ''}
+          onSave={() => {
+            setShowHomographyCalibration(false);
+            fetchCameras();
+          }}
+          onCancel={() => setShowHomographyCalibration(false)}
+          isReCalibration={selectedCameraForCalibration.is_configured || false}
+        />
+      )}
     </div>
   );
 };

@@ -76,12 +76,18 @@ class FloorSettingsResponse(BaseModel):
 class CameraBase(BaseModel):
     position: Dict[str, float]
     visible_zone: Dict[str, Any]
-    is_active: bool = True
     is_configured: bool = False  
     points_of_homography: Optional[Dict[str, Any]] = None
     floor_id: int
     video_stream: Optional[str] = None
-    area_id: Optional[int] = None 
+    area_id: Optional[int] = None
+    frame_shape: Optional[Dict[str, int]] = None
+    rotation: Optional[float] = None
+
+
+
+
+
 
 class CameraCreate(CameraBase):
     pass

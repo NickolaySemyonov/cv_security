@@ -55,12 +55,13 @@ async def create_camera(
     camera = Camera(
         position=camera_data.position,
         visible_zone=camera_data.visible_zone,
-        is_active=camera_data.is_active,
         is_configured=camera_data.is_configured,
         points_of_homography=camera_data.points_of_homography,
         floor_id=camera_data.floor_id,
         area_id=camera_data.area_id,
-        video_stream=camera_data.video_stream
+        video_stream=camera_data.video_stream,
+        frame_shape=camera_data.frame_shape,
+        rotation=camera_data.rotation
     )
     db.add(camera)
     db.commit()
@@ -111,6 +112,7 @@ async def update_camera_homography(
     
     camera.points_of_homography = data.get("points_of_homography")
     camera.video_stream = data.get("video_stream")
+    camera.frame_shape = data.get("frame_shape")
     camera.is_configured = data.get("is_configured", True)
     
     db.commit()

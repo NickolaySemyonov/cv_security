@@ -1,4 +1,3 @@
-// frontend/src/components/CameraDrawer.tsx
 import { useState, useRef } from 'react';
 
 interface Point {
@@ -10,7 +9,7 @@ interface Camera {
   id: number;
   position: { x: number; y: number };
   visible_zone: { vertices: number[][] };
-  is_active: boolean;
+  is_configured?: boolean;
 }
 
 interface CameraDrawerProps {
@@ -29,6 +28,33 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const [isMovingCamera, setIsMovingCamera] = useState(false);
   const [tempCameraPos, setTempCameraPos] = useState<Point | null>(null);
   const [isDraggingCamera, setIsDraggingCamera] = useState(false);
+
+  // Расчёт угла: 0 радиан = камера снизу (смотрит вверх)
+  const calculateRotation = (zoneVertices: Point[], cameraPos: Point): number => {
+    if (!zoneVertices.length || !cameraPos) return 0;
+    
+    const centerX = zoneVertices.reduce((sum, p) => sum + p.x, 0) / zoneVertices.length;
+    const centerY = zoneVertices.reduce((sum, p) => sum + p.y, 0) / zoneVertices.length;
+    
+    // Вектор от камеры к центру
+    const dx = centerX - cameraPos.x;
+    const dy = centerY - cameraPos.y;
+    
+    // Стандартный угол (0 = вправо)
+    let angle = Math.atan2(dy, dx);
+    
+    // Преобразуем: 0 радиан = снизу (смотрит вверх)
+    angle = angle - Math.PI / 2;
+    
+    // Добавляем поворот на 180° (π) перед сохранением в БД
+    angle = angle + Math.PI;
+    
+    // Нормализуем в диапазон 0 - 2π
+    if (angle < 0) angle += 2 * Math.PI;
+    if (angle >= 2 * Math.PI) angle -= 2 * Math.PI;
+    
+    return angle;
+  };
 
   const getSVGCoordinates = (clientX: number, clientY: number): Point | null => {
     const svgElement = svgContainerRef.current?.querySelector('svg');
@@ -109,23 +135,31 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
     ];
   };
 
-  const getCameraSide = (zone: Point[], mousePoint: Point): string => {
+  const getClosestSidePoint = (zone: Point[], mousePoint: Point): Point => {
     const minX = Math.min(...zone.map(p => p.x));
     const maxX = Math.max(...zone.map(p => p.x));
     const minY = Math.min(...zone.map(p => p.y));
     const maxY = Math.max(...zone.map(p => p.y));
     
-    const distToTop = Math.abs(mousePoint.y - minY);
-    const distToBottom = Math.abs(mousePoint.y - maxY);
-    const distToLeft = Math.abs(mousePoint.x - minX);
-    const distToRight = Math.abs(mousePoint.x - maxX);
+    const candidates = [
+      { x: Math.min(maxX, Math.max(minX, mousePoint.x)), y: minY },
+      { x: Math.min(maxX, Math.max(minX, mousePoint.x)), y: maxY },
+      { x: minX, y: Math.min(maxY, Math.max(minY, mousePoint.y)) },
+      { x: maxX, y: Math.min(maxY, Math.max(minY, mousePoint.y)) }
+    ];
     
-    const minDist = Math.min(distToTop, distToBottom, distToLeft, distToRight);
+    let closest = candidates[0];
+    let minDist = Math.hypot(closest.x - mousePoint.x, closest.y - mousePoint.y);
     
-    if (minDist === distToTop) return 'top';
-    if (minDist === distToBottom) return 'bottom';
-    if (minDist === distToLeft) return 'left';
-    return 'right';
+    for (const candidate of candidates) {
+      const dist = Math.hypot(candidate.x - mousePoint.x, candidate.y - mousePoint.y);
+      if (dist < minDist) {
+        minDist = dist;
+        closest = candidate;
+      }
+    }
+    
+    return closest;
   };
 
   const getCameraPositionOnPerimeter = (zone: Point[]): Point => {
@@ -141,29 +175,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
     if (!startPoint || !endPoint) return;
     
     const zone = createRectangle(startPoint, endPoint);
-    const minX = Math.min(...zone.map(p => p.x));
-    const maxX = Math.max(...zone.map(p => p.x));
-    const minY = Math.min(...zone.map(p => p.y));
-    const maxY = Math.max(...zone.map(p => p.y));
-    
-    const side = getCameraSide(zone, mousePoint);
-    
-    let newPos: Point = { x: 0, y: 0 };
-    switch (side) {
-      case 'top':
-        newPos = { x: Math.min(maxX, Math.max(minX, mousePoint.x)), y: minY };
-        break;
-      case 'bottom':
-        newPos = { x: Math.min(maxX, Math.max(minX, mousePoint.x)), y: maxY };
-        break;
-      case 'left':
-        newPos = { x: minX, y: Math.min(maxY, Math.max(minY, mousePoint.y)) };
-        break;
-      case 'right':
-        newPos = { x: maxX, y: Math.min(maxY, Math.max(minY, mousePoint.y)) };
-        break;
-    }
-    
+    const newPos = getClosestSidePoint(zone, mousePoint);
     setTempCameraPos(newPos);
   };
 
@@ -185,12 +197,14 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const confirmCameraPosition = () => {
     if (cameraPosition && startPoint && endPoint) {
       const zone = createRectangle(startPoint, endPoint);
+      const rotation = calculateRotation(zone, cameraPosition);
+      
       const cameraData = {
         position: { x: cameraPosition.x, y: cameraPosition.y },
         visible_zone: { vertices: zone.map(p => [p.x, p.y]) },
         points_of_homography: null,
-        distance_between_points: null,
-        is_active: true
+        is_configured: false,
+        rotation: rotation
       };
       onSave(cameraData);
       setCameraPosition(null);
@@ -200,6 +214,16 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
       setIsDraggingCamera(false);
       setTempCameraPos(null);
     }
+  };
+
+  const renderCameraIcon = (x: number, y: number, isExisting: boolean = false): string => {
+    return `
+      <g transform="translate(${x - 14}, ${y - 14})">
+        <circle cx="14" cy="14" r="14" fill="${isExisting ? '#888888' : '#FF4444'}" stroke="#fff" stroke-width="2" />
+        <circle cx="14" cy="14" r="7" fill="#fff" />
+        <circle cx="14" cy="14" r="3" fill="${isExisting ? '#888888' : '#FF4444'}" />
+      </g>
+    `;
   };
 
   const getSvgWithExistingCameras = (svgContent: string): string => {
@@ -217,14 +241,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
       if (camera.position) {
         const x = camera.position.x;
         const y = camera.position.y;
-        const cameraIcon = `
-          <g transform="translate(${x - 12}, ${y - 12})">
-            <circle cx="12" cy="12" r="12" fill="#888888" stroke="#fff" stroke-width="2" />
-            <circle cx="12" cy="12" r="6" fill="#fff" />
-            <circle cx="12" cy="12" r="3" fill="#888888" />
-          </g>
-        `;
-        modifiedSvg = modifiedSvg.replace('</svg>', cameraIcon + '</svg>');
+        modifiedSvg = modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
       }
     });
     
@@ -250,14 +267,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
     
     const cameraPos = tempCameraPos || cameraPosition;
     if (cameraPos) {
-      const cameraElement = `
-        <g transform="translate(${cameraPos.x - 14}, ${cameraPos.y - 14})">
-          <circle cx="14" cy="14" r="14" fill="#FF4444" stroke="#fff" stroke-width="2" />
-          <circle cx="14" cy="14" r="7" fill="#fff" />
-          <circle cx="14" cy="14" r="3" fill="#FF4444" />
-        </g>
-      `;
-      modifiedSvg = modifiedSvg.replace('</svg>', cameraElement + '</svg>');
+      modifiedSvg = modifiedSvg.replace('</svg>', renderCameraIcon(cameraPos.x, cameraPos.y, false) + '</svg>');
     }
     
     return modifiedSvg;
@@ -305,7 +315,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
         ) : isMovingCamera ? (
           <span>🔵 Зажмите левую кнопку мыши и ведите по периметру зоны, чтобы переместить камеру</span>
         ) : (
-          <span>🟢 Зона видимости создана. Нажмите "Переместить камеру" или "Сохранить"</span>
+          <span>🟢 Зона видимости создана. Нажмите "Сохранить камеру"</span>
         )}
       </p>
       

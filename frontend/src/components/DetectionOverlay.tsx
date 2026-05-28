@@ -10,7 +10,7 @@ interface DetectionPoint {
 interface DetectionOverlayProps {
   svgContent: string;
   detections: DetectionPoint[];
-  cameras?: { id: number; zone: number[][] }[];
+  cameras?: { id: number; zone: number[][]; rotation?: number; frame_shape?: { width: number; height: number } }[];
   isConnected?: boolean;
 }
 
@@ -18,7 +18,7 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log('[DETECTION_OVERLAY] detections changed:', detections);
+    console.log('[DETECTION_OVERLAY] detections:', detections);
     console.log('[DETECTION_OVERLAY] cameras:', cameras);
   }, [detections, cameras]);
 
@@ -44,6 +44,7 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
     
     let modifiedSvg = svg;
     
+    // Рисуем зоны видимости камер
     cameras.forEach((camera) => {
       if (camera.zone && camera.zone.length >= 4) {
         const points = camera.zone.map(p => `${p[0]},${p[1]}`).join(' ');
@@ -52,34 +53,26 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
       }
     });
     
-    console.log('[DETECTION_OVERLAY] Отрисовка точек:', detections.length);
-    
-    const detectionsByCamera: Map<number, DetectionPoint[]> = new Map();
-    detections.forEach(detection => {
-      if (!detectionsByCamera.has(detection.cameraId)) {
-        detectionsByCamera.set(detection.cameraId, []);
-      }
-      detectionsByCamera.get(detection.cameraId)!.push(detection);
-    });
-    
-    detectionsByCamera.forEach((points, cameraId) => {
-      const color = getCameraColor(cameraId);
-      points.forEach((detection) => {
-        const camera = cameras.find(c => c.id === cameraId);
-        const isInZone = camera ? isPointInZone(detection.x, detection.y, camera.zone) : true;
-        const fillColor = isInZone ? color : '#FFFF44';
-        
-        console.log(`[DETECTION_OVERLAY] Рисуем точку: camera=${cameraId}, x=${detection.x}, y=${detection.y}, color=${fillColor}`);
-        
-        const circle = `
-          <g transform="translate(${detection.x - 8}, ${detection.y - 8})">
-            <circle cx="8" cy="8" r="8" fill="${fillColor}" stroke="#fff" stroke-width="2" />
-            <circle cx="8" cy="8" r="3" fill="#fff" />
-            <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
-          </g>
-        `;
-        modifiedSvg = modifiedSvg.replace('</svg>', circle + '</svg>');
-      });
+    // Отрисовываем точки детекции
+    detections.forEach((detection, idx) => {
+      const x = detection.x;
+      const y = detection.y;
+      
+      console.log(`[DETECTION_OVERLAY] Отрисовка точки ${idx}: x=${x}, y=${y}, camera=${detection.cameraId}`);
+      
+      const camera = cameras.find(c => c.id === detection.cameraId);
+      const color = getCameraColor(detection.cameraId);
+      const isInZone = camera ? isPointInZone(x, y, camera.zone) : true;
+      const fillColor = isInZone ? color : '#FFFF44';
+      
+      const circle = `
+        <g transform="translate(${x - 8}, ${y - 8})">
+          <circle cx="8" cy="8" r="8" fill="${fillColor}" stroke="#fff" stroke-width="2" />
+          <circle cx="8" cy="8" r="3" fill="#fff" />
+          <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
+        </g>
+      `;
+      modifiedSvg = modifiedSvg.replace('</svg>', circle + '</svg>');
     });
     
     return modifiedSvg;
