@@ -10,6 +10,7 @@ class ProcessWorker(BaseWorker):
     def __init__(self, ctx: CVPipelineContext, in_queue_names, out_queue_name, **kwargs):
         super().__init__(ctx, in_queue_names, out_queue_name, **kwargs)
         self.inference_module = kwargs.get("inference_module")
+        self.return_plot = kwargs.get("return_plot", False)
 
     def run(self):
         print("[Process] Thread started")
@@ -41,8 +42,9 @@ class ProcessWorker(BaseWorker):
                             det.get_standing_point()
                             for det in inference_result.detections
                         ],
-                        debug_plot=inference_result.plot,
+                        debug_plot=inference_result.plot if self.return_plot else None,
                         timestamp=item.timestamp,
+                        frame_shape=(item.frame.shape[:2])
                     )
 
                     self.out_queue.put(processed_item)

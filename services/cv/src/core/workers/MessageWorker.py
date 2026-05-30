@@ -1,12 +1,15 @@
 import json
+import math
 import queue
 import time
 
 from src.config.constants import CV_EXCHANGE_NAME
 from src.core.BaseWorker import BaseWorker
 from src.core.CVPipelineContext import CVPipelineContext
-from src.core.models.queue_content import ProcessedData
-from src.utils import HomographyUtils
+from src.core.models.camera_config import CameraData
+from src.core.models.queue_content import ProcessedData, MessageData
+from src.utils.CoordinateTransformUtils import rotate_coordinate, normalize_coordinate
+from src.utils.HomographyUtils import cam2map
 
 
 class MessageWorker(BaseWorker):
@@ -28,7 +31,7 @@ class MessageWorker(BaseWorker):
                 success = self.broker.publish(
                     CV_EXCHANGE_NAME,
                     "",
-                    json.dumps(message).encode()
+                    json.dumps(message.__dict__).encode()
                 )
                 if not success:
                     self.in_queues[0].task_done()
@@ -47,17 +50,23 @@ class MessageWorker(BaseWorker):
 
         self.broker.close_connection()
 
-    def _build_message(self, item: ProcessedData) -> dict:
+    def _build_message(self, item: ProcessedData) -> MessageData:
 
-        camera_data = self.ctx.get_camera_config().get_camera(item.cam_id)
+        camera_data: CameraData = self.ctx.get_camera_config().get_camera(item.cam_id)
 
         if camera_data.H is None:
             raise ValueError(f"No homography for camera {item.cam_id}")
 
-        return {
-            "camera_id": item.cam_id,
-            "translated_points": [
-                HomographyUtils.cam2map(camera_data.H, x, y) for x, y in item.raw_pts
-            ],
-            "timestamp": item.timestamp,
-        }
+        translated_points = []
+        for x, y in item.raw_pts:
+            mapped = cam2map(camera_data.H, x, y)
+            rotated = rotate_coordinate(mapped, camera_data.rotation, item.frame_shape)
+            normalized = normalize_coordinate(rotated, item.frame_shape)
+            translated_points.append(normalized)
+
+        return MessageData(
+            camera_id=item.cam_id,
+            translated_points=translated_points,
+            timestamp=item.timestamp,
+            area_id=camera_data.area_id
+        )

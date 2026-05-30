@@ -63,7 +63,7 @@ class CaptureWorker(BaseWorker):
             params=[cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 1000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 1000],
         )
         self._cap = cap
-
+        self._cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         if not self._cap.isOpened():
             print(f"[Capture] Cannot open camera {self.camera_id}: {source}")
 

@@ -12,6 +12,8 @@ class CameraData:
     homography_points_cam: list[tuple[float, float]] = field(default=None)
     homography_points_map: list[tuple[float, float]] = field(default=None)
     H: np.ndarray = field(default=None, compare=False)
+    rotation: float = field(default=0)
+    area_id: int = field(default=0)
 
 
 @dataclass

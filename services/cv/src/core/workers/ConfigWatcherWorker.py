@@ -41,14 +41,16 @@ class ConfigWatcherWorker(BaseWorker):
             with conn.cursor() as cursor:
                 try:
                     print(f"polling camera config at {datetime.now()}")
-                    cursor.execute("SELECT id, points_of_homography FROM camera WHERE id in %s", (ids_tuple,))
+                    cursor.execute("SELECT id, points_of_homography, area_id, rotation, video_stream FROM camera WHERE id in %s", (ids_tuple,))
                     rows = cursor.fetchall()
                     for row in rows:
                         camera_data = CameraData(
                             id=row[0],
                             source='./test-media/crowd.mp4',
                             homography_points_cam=row[1]["src_points"],
-                            homography_points_map=row[1]["dst_points"]
+                            homography_points_map=row[1]["dst_points"],
+                            rotation=row[3],  # mock rotation
+                            area_id=row[2]
                         )
                         camera_config.add_camera(camera_data)
                 except Exception as e:
