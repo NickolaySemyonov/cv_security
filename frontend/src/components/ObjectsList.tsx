@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, ChangeEvent, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../config/axios';
 import SvgPreview from './SvgPreview';
-import ObjectForm from './ObjectForm';
 import FileInput from './FileInput';
 import ObjectCard from './ObjectCard';
 import Header from './Header';
@@ -37,14 +36,6 @@ interface ObjectsListProps {
   onLogout: () => void;
 }
 
-interface ApiError {
-  response?: {
-    data?: {
-      detail?: string;
-    };
-  };
-}
-
 const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -53,9 +44,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
   const [uniqueObjects, setUniqueObjects] = useState<UniqueObject[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [showAddForm, setShowAddForm] = useState<boolean>(false);
-  const [showFloorForm, setShowFloorForm] = useState<{ show: boolean; place: string }>({ show: false, place: '' });
   const [newObjectName, setNewObjectName] = useState<string>('');
-  const [newFloorNumber, setNewFloorNumber] = useState<number>(1);
   const [selectedFile, setSelectedFile] = useState<SelectedFile | null>(null);
   const [error, setError] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
@@ -132,34 +121,8 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       return;
     }
     
-    setIsSubmitting(true);
-    setError('');
-    
-    try {
-      const svgMap = selectedFile?.content || '<svg width="800" height="600" viewBox="0 0 800 600" style="background-color: #f0f0f0"></svg>';
-      
-      await api.post<Floor>('/floors', {
-        number: 1,
-        place: newObjectName.trim(),
-        map: svgMap
-      });
-      
-      await fetchFloors();
-      setShowAddForm(false);
-      setNewObjectName('');
-      resetForm();
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.response?.data?.detail || 'Ошибка при добавлении объекта');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleAddFloor = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
-    e.preventDefault();
-    if (!newFloorNumber || newFloorNumber < 0) {
-      setError('Введите корректный номер этажа');
+    if (!selectedFile) {
+      setError('Необходимо загрузить карту этажа (SVG файл)');
       return;
     }
     
@@ -167,31 +130,18 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     setError('');
     
     try {
-      const svgMap = selectedFile?.content || '<svg width="800" height="600" viewBox="0 0 800 600" style="background-color: #f0f0f0"></svg>';
-      
-      const existingFloor = floors.find(
-        f => f.place === showFloorForm.place && f.number === newFloorNumber
-      );
-      
-      if (existingFloor) {
-        setError(`Этаж ${newFloorNumber} у объекта "${showFloorForm.place}" уже существует`);
-        setIsSubmitting(false);
-        return;
-      }
-      
       await api.post<Floor>('/floors', {
-        number: newFloorNumber,
-        place: showFloorForm.place,
-        map: svgMap
+        number: 1,
+        place: newObjectName.trim(),
+        map: selectedFile.content
       });
       
       await fetchFloors();
-      setShowFloorForm({ show: false, place: '' });
-      setNewFloorNumber(1);
+      setShowAddForm(false);
+      setNewObjectName('');
       resetForm();
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.response?.data?.detail || 'Ошибка при добавлении этажа');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка при добавлении объекта');
     } finally {
       setIsSubmitting(false);
     }
@@ -206,20 +156,8 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       }
       
       await fetchFloors();
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.response?.data?.detail || 'Ошибка при удалении объекта');
-      setTimeout(() => setError(''), 3000);
-    }
-  };
-
-  const handleDeleteFloor = async (floorId: number, place: string): Promise<void> => {
-    try {
-      await api.delete(`/floors/${floorId}`);
-      await fetchFloors();
-    } catch (err) {
-      const apiError = err as ApiError;
-      setError(apiError.response?.data?.detail || 'Ошибка при удалении этажа');
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка при удалении объекта');
       setTimeout(() => setError(''), 3000);
     }
   };
@@ -228,22 +166,20 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     navigate(`/objects/${encodeURIComponent(place)}/floors`);
   };
 
-  const openAddFloorForm = (place: string, currentFloorsCount: number): void => {
-    setShowFloorForm({ show: true, place });
-    setNewFloorNumber(currentFloorsCount + 1);
-    resetForm();
+  const handleAddFloor = async (place: string, currentFloorsCount: number): Promise<void> => {
+    await fetchFloors();
   };
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center min-h-screen">
-        <div className="text-xl text-gray-600">Загрузка объектов...</div>
+      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex justify-center items-center">
+        <div className="text-xl text-gray-400">Загрузка объектов...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
       <Header user={user} onLogout={onLogout} />
 
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8 flex-grow">
@@ -255,7 +191,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                   setShowAddForm(!showAddForm);
                   resetForm();
                 }}
-                className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-6 py-3 rounded-xl hover:from-blue-600 hover:to-blue-700 transition-all duration-200 shadow-md hover:shadow-lg flex items-center gap-2 font-medium"
+                className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg shadow-blue-500/25 flex items-center gap-2 font-medium"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -268,93 +204,77 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
           <div className="flex justify-center">
             <div className="w-full max-w-2xl">
               {showAddForm && isAdmin && (
-                <ObjectForm
-                  title="Новый объект"
-                  onSubmit={handleAddObject}
-                  onCancel={() => setShowAddForm(false)}
-                  isSubmitting={isSubmitting}
-                  error={error}
-                >
-                  <div className="mb-4">
-                    <label className="block text-gray-700 font-medium mb-2">Название объекта</label>
-                    <input
-                      type="text"
-                      value={newObjectName}
-                      onChange={(e) => setNewObjectName(e.target.value)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-                      placeholder="Например: Главный корпус"
-                      required
+                <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-6 mb-8 shadow-xl">
+                  <h2 className="text-xl font-semibold text-gray-200 mb-4">Новый объект</h2>
+                  {error && (
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl mb-4 text-sm">
+                      {error}
+                    </div>
+                  )}
+                  <form onSubmit={handleAddObject}>
+                    <div className="mb-4">
+                      <label className="block text-gray-300 font-medium mb-2">Название объекта</label>
+                      <input
+                        type="text"
+                        value={newObjectName}
+                        onChange={(e) => setNewObjectName(e.target.value)}
+                        className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-xl text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500"
+                        placeholder="Например: Главный корпус"
+                        required
+                      />
+                      <p className="text-gray-500 text-sm mt-1">Будет создан первый этаж</p>
+                    </div>
+                    
+                    <FileInput
+                      fileInputRef={fileInputRef}
+                      onFileSelect={handleFileSelect}
+                      label="Карта этажа (SVG)"
+                      helperText="Обязательно загрузите SVG файл карты этажа"
                     />
-                    <p className="text-gray-400 text-sm mt-1">Будет создан первый этаж</p>
-                  </div>
-                  
-                  <FileInput
-                    fileInputRef={fileInputRef}
-                    onFileSelect={handleFileSelect}
-                    label="Карта этажа (SVG)"
-                  />
 
-                  <SvgPreview file={selectedFile} maxHeight="250px" />
-                </ObjectForm>
+                    <SvgPreview file={selectedFile} maxHeight="250px" />
+                    
+                    <div className="flex gap-3 mt-6">
+                      <button type="submit" disabled={isSubmitting || !selectedFile} className="bg-gradient-to-r from-green-600 to-green-500 text-white px-5 py-2 rounded-xl font-medium disabled:opacity-50 hover:from-green-700 hover:to-green-600 transition-all duration-200 shadow-lg shadow-green-500/25">
+                        {isSubmitting ? 'Сохранение...' : 'Сохранить объект'}
+                      </button>
+                      <button type="button" onClick={() => {
+                        setShowAddForm(false);
+                        resetForm();
+                      }} className="bg-gray-700 text-gray-300 px-5 py-2 rounded-xl font-medium hover:bg-gray-600 transition-colors">
+                        Отмена
+                      </button>
+                    </div>
+                  </form>
+                </div>
               )}
 
-              {showFloorForm.show && isAdmin && (
-                <ObjectForm
-                  title={`Добавить этаж к "${showFloorForm.place}"`}
-                  onSubmit={handleAddFloor}
-                  onCancel={() => setShowFloorForm({ show: false, place: '' })}
-                  isSubmitting={isSubmitting}
-                  error={error}
-                >
-                  <div className="mb-4">
-                    <label className="block text-gray-700 font-medium mb-2">Номер этажа</label>
-                    <input
-                      type="number"
-                      value={newFloorNumber}
-                      onChange={(e) => setNewFloorNumber(parseInt(e.target.value) || 1)}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500"
-                      min="1"
-                      required
-                    />
+              {uniqueObjects.length === 0 && !showAddForm ? (
+                <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-12 text-center max-w-2xl mx-auto mt-8 shadow-xl">
+                  <div className="text-6xl mb-4">🏢</div>
+                  <h3 className="text-xl font-medium text-gray-300">Нет добавленных объектов</h3>
+                  <p className="text-gray-500 mt-2">Нажмите "Добавить объект", чтобы начать</p>
+                </div>
+              ) : (
+                <div className="flex justify-center mt-8">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                    {uniqueObjects.map((obj) => (
+                      <ObjectCard
+                        key={obj.place}
+                        place={obj.place}
+                        floorsCount={obj.floorsCount}
+                        floors={obj.floors}
+                        onCardClick={handleObjectClick}
+                        onAddFloor={handleAddFloor}
+                        onDeleteObject={handleDeleteObject}
+                        isAdmin={isAdmin}
+                      />
+                    ))}
                   </div>
-                  
-                  <FileInput
-                    fileInputRef={fileInputRef}
-                    onFileSelect={handleFileSelect}
-                    label="Карта этажа (SVG)"
-                    helperText="Оставьте пустым для карты по умолчанию"
-                  />
-
-                  <SvgPreview file={selectedFile} maxHeight="250px" />
-                </ObjectForm>
+                </div>
               )}
             </div>
           </div>
-
-          {uniqueObjects.length === 0 && !showAddForm ? (
-            <div className="bg-white rounded-2xl shadow-lg p-12 text-center max-w-2xl mx-auto mt-8">
-              <div className="text-6xl mb-4">🏢</div>
-              <h3 className="text-xl font-medium text-gray-700">Нет добавленных объектов</h3>
-              <p className="text-gray-400 mt-2">Нажмите "Добавить объект", чтобы начать</p>
-            </div>
-          ) : (
-            <div className="flex justify-center mt-8">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {uniqueObjects.map((obj) => (
-                  <ObjectCard
-                    key={obj.place}
-                    place={obj.place}
-                    floorsCount={obj.floorsCount}
-                    floors={obj.floors}
-                    onCardClick={handleObjectClick}
-                    onAddFloor={openAddFloorForm}
-                    onDeleteObject={handleDeleteObject}
-                    isAdmin={isAdmin}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </main>
 

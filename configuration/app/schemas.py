@@ -39,14 +39,13 @@ class RefreshResponse(BaseModel):
 class FloorCreate(BaseModel):
     number: int = Field(..., ge=0, description="Номер этажа")
     place: str = Field(..., min_length=1, max_length=100, description="Название объекта")
-    map: str = Field(default='<svg width="800" height="600" viewBox="0 0 800 600" style="background-color: #f0f0f0"></svg>', description="SVG карта этажа")
+    map: str = Field(..., description="SVG карта этажа (обязательно)")
 
 class FloorResponse(BaseModel):
     id: int
     number: int
     place: str
     map: str
-    is_calibrated: bool = False  
     
     class Config:
         from_attributes = True
@@ -59,19 +58,10 @@ class FloorUpdate(BaseModel):
     class Config:
         from_attributes = True
 
-class CalibrationData(BaseModel):
-    calibration_points: List[Dict[str, float]]
-    calibration_distance: float
-    is_calibrated: bool = True
-
-class FloorSettingsResponse(BaseModel):
-    is_calibrated: bool
-    calibration_points: Optional[List[Dict[str, float]]] = None
-    calibration_distance: Optional[float] = None
-    pixels_per_meter: Optional[float] = None
-    real_width_meters: Optional[float] = None
-    real_height_meters: Optional[float] = None
-
+class FloorDeleteResponse(BaseModel):
+    message: str
+    cameras_deleted: int = 0
+    areas_deleted: int = 0
 
 class CameraBase(BaseModel):
     position: Dict[str, float]
@@ -83,11 +73,6 @@ class CameraBase(BaseModel):
     area_id: Optional[int] = None
     frame_shape: Optional[Dict[str, int]] = None
     rotation: Optional[float] = None
-
-
-
-
-
 
 class CameraCreate(CameraBase):
     pass

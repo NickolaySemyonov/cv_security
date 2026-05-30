@@ -1,4 +1,3 @@
-// frontend/src/hooks/useSvgRenderer.ts
 import { useCallback } from 'react';
 import { normalizeSvg, getViewBox } from '../utils/svgHelpers';
 
@@ -32,7 +31,8 @@ export const useSvgRenderer = (
   selectedCameras: Set<number>, 
   editingZone: Zone | null,
   getDetectionsByFloor: (floorId: number) => DetectionPoint[],
-  currentFloorId: number
+  currentFloorId: number,
+  blinkingZoneId: number | null = null
 ) => {
   
   const getZoneOfCamera = useCallback((cameraId: number): Zone | undefined => 
@@ -70,9 +70,11 @@ export const useSvgRenderer = (
     const x = camera.position.x;
     const y = camera.position.y;
     
-    let cameraColor = '#333333';
+    let cameraColor = '#FF4444';
     let borderColor = '#FFFFFF';
     let additionalClass = '';
+    let cursorStyle = 'cursor:pointer';
+    let hoverEffect = '';
     
     if (isSelectingZone) {
       additionalClass = 'selectable-camera';
@@ -81,10 +83,28 @@ export const useSvgRenderer = (
       } else {
         cameraColor = '#333333';
       }
+    } else {
+      additionalClass = 'clickable-camera';
+      hoverEffect = `
+        <style>
+          .camera-icon-${camera.id}:hover circle:first-child {
+            filter: drop-shadow(0 0 8px rgba(255, 68, 68, 0.8));
+            transition: filter 0.2s ease;
+          }
+          .camera-icon-${camera.id}:hover circle:last-child {
+            transform: scale(1.2);
+            transition: transform 0.2s ease;
+          }
+        </style>
+      `;
     }
     
     const cameraIcon = `
-      <g transform="translate(${x - 16}, ${y - 16})" ${additionalClass ? `class="${additionalClass}" data-camera-id="${camera.id}" style="cursor:pointer"` : ''}>
+      ${hoverEffect}
+      <g transform="translate(${x - 16}, ${y - 16})" 
+         class="camera-icon-${camera.id} ${additionalClass}" 
+         data-camera-id="${camera.id}" 
+         style="${cursorStyle}">
         <rect x="2" y="8" width="28" height="16" rx="3" fill="${cameraColor}" stroke="${borderColor}" stroke-width="1.5" />
         <circle cx="16" cy="16" r="7" fill="#1a1a1a" stroke="${borderColor}" stroke-width="1" />
         <circle cx="16" cy="16" r="4" fill="#333333" />
@@ -112,16 +132,33 @@ export const useSvgRenderer = (
       return result;
     }
     
+    const isBlinking = blinkingZoneId === zone.id;
+    
     const color = zone.type === 'red' 
-      ? 'rgba(255, 80, 80, 0.35)' 
+      ? (isBlinking ? 'rgba(255, 0, 0, 0.7)' : 'rgba(255, 80, 80, 0.35)')
       : 'rgba(80, 255, 80, 0.35)';
-    const strokeColor = zone.type === 'red' ? '#FF4444' : '#44FF44';
+    const strokeColor = zone.type === 'red' 
+      ? (isBlinking ? '#FF0000' : '#FF4444')
+      : '#44FF44';
+    const strokeWidth = isBlinking ? '4' : '3';
+    const animation = isBlinking ? 'animation: blink 0.5s infinite;' : '';
     
     let result = '';
+    if (isBlinking) {
+      result += `
+        <style>
+          @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+          }
+        </style>
+      `;
+    }
+    
     zone.cameras.forEach((camera) => {
       if (camera.visible_zone?.vertices?.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-        result += `<polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="6,4" />`;
+        result += `<polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="6,4" style="${animation}" />`;
       }
     });
     return result;

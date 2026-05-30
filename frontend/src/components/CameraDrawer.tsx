@@ -29,27 +29,19 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const [tempCameraPos, setTempCameraPos] = useState<Point | null>(null);
   const [isDraggingCamera, setIsDraggingCamera] = useState(false);
 
-  // Расчёт угла: 0 радиан = камера снизу (смотрит вверх)
   const calculateRotation = (zoneVertices: Point[], cameraPos: Point): number => {
     if (!zoneVertices.length || !cameraPos) return 0;
     
     const centerX = zoneVertices.reduce((sum, p) => sum + p.x, 0) / zoneVertices.length;
     const centerY = zoneVertices.reduce((sum, p) => sum + p.y, 0) / zoneVertices.length;
     
-    // Вектор от камеры к центру
     const dx = centerX - cameraPos.x;
     const dy = centerY - cameraPos.y;
     
-    // Стандартный угол (0 = вправо)
     let angle = Math.atan2(dy, dx);
-    
-    // Преобразуем: 0 радиан = снизу (смотрит вверх)
     angle = angle - Math.PI / 2;
-    
-    // Добавляем поворот на 180° (π) перед сохранением в БД
     angle = angle + Math.PI;
     
-    // Нормализуем в диапазон 0 - 2π
     if (angle < 0) angle += 2 * Math.PI;
     if (angle >= 2 * Math.PI) angle -= 2 * Math.PI;
     
@@ -219,9 +211,9 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const renderCameraIcon = (x: number, y: number, isExisting: boolean = false): string => {
     return `
       <g transform="translate(${x - 14}, ${y - 14})">
-        <circle cx="14" cy="14" r="14" fill="${isExisting ? '#888888' : '#FF4444'}" stroke="#fff" stroke-width="2" />
+        <circle cx="14" cy="14" r="14" fill="${isExisting ? '#666666' : '#FF4444'}" stroke="#fff" stroke-width="2" />
         <circle cx="14" cy="14" r="7" fill="#fff" />
-        <circle cx="14" cy="14" r="3" fill="${isExisting ? '#888888' : '#FF4444'}" />
+        <circle cx="14" cy="14" r="3" fill="${isExisting ? '#666666' : '#FF4444'}" />
       </g>
     `;
   };
@@ -234,7 +226,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
     existingCameras.forEach((camera) => {
       if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-        const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.1)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
+        const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
         modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
       }
       
@@ -276,52 +268,61 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   return (
     <div className="mb-6">
       <div className="flex justify-between items-center mb-4">
-        <h3 className="text-lg font-semibold text-gray-800">
+        <h3 className="text-lg font-semibold text-gray-200">
           🎥 Добавление камеры
         </h3>
         <div className="flex gap-2">
           {cameraPosition && !isMovingCamera && (
             <button
               onClick={startMovingCamera}
-              className="px-3 py-1 bg-yellow-500 text-white rounded-lg text-sm hover:bg-yellow-600"
+              className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors border border-yellow-500/30"
             >
               ✨ Переместить камеру
             </button>
           )}
           {isMovingCamera && (
-            <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-lg text-sm">
+            <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm border border-blue-500/30">
               🔵 Зажмите ЛКМ и ведите по периметру
             </span>
           )}
           <button
             onClick={handleCancel}
-            className="px-3 py-1 bg-gray-500 text-white rounded-lg text-sm hover:bg-gray-600"
+            className="px-3 py-1 bg-gray-700 text-gray-300 rounded-lg text-sm hover:bg-gray-600 transition-colors"
           >
             Отмена
           </button>
           <button
             onClick={confirmCameraPosition}
             disabled={!cameraPosition}
-            className="px-3 py-1 bg-green-500 text-white rounded-lg text-sm hover:bg-green-600 disabled:opacity-50"
+            className="px-3 py-1 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg text-sm hover:from-green-700 hover:to-green-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-green-500/25"
           >
             Сохранить камеру
           </button>
         </div>
       </div>
       
-      <p className="text-sm text-gray-600 mb-3">
+      <p className="text-sm text-gray-400 mb-3">
         {!cameraPosition ? (
-          <span>🔴 Зажмите левую кнопку мыши и растяните прямоугольник — это будет зона видимости камеры</span>
+          <span className="flex items-center gap-2">
+            <span className="text-red-400">🔴</span>
+            Зажмите левую кнопку мыши и растяните прямоугольник — это будет зона видимости камеры
+          </span>
         ) : isMovingCamera ? (
-          <span>🔵 Зажмите левую кнопку мыши и ведите по периметру зоны, чтобы переместить камеру</span>
+          <span className="flex items-center gap-2">
+            <span className="text-blue-400">🔵</span>
+            Зажмите левую кнопку мыши и ведите по периметру зоны, чтобы переместить камеру
+          </span>
         ) : (
-          <span>🟢 Зона видимости создана. Нажмите "Сохранить камеру"</span>
+          <span className="flex items-center gap-2">
+            <span className="text-green-400">🟢</span>
+            Зона видимости создана. Нажмите "Сохранить камеру"
+          </span>
         )}
       </p>
       
       <div
         ref={svgContainerRef}
-        className="border rounded-lg p-2 bg-gray-50 overflow-auto"
+        className="border border-gray-600 rounded-xl p-2 bg-gray-900/50 overflow-auto"
         style={{ cursor: isDrawing || (isMovingCamera && isDraggingCamera) ? 'crosshair' : 'default', minHeight: '500px' }}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}

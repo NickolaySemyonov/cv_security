@@ -370,9 +370,6 @@ const HomographyCalibration = ({
         <div className="grid grid-cols-2 gap-6">
           <div>
             <h3 className="text-lg font-semibold mb-2">1. Отметьте 4 точки на видео</h3>
-            <p className="text-sm text-gray-500 mb-2">
-              Порядок: левый верхний → правый верхний → правый нижний → левый нижний
-            </p>
             <p className="text-sm text-gray-500 mb-4">
               Отмечено точек: {videoPoints.length}/4
             </p>
@@ -406,12 +403,6 @@ const HomographyCalibration = ({
           
           <div>
             <h3 className="text-lg font-semibold mb-2">2. Отметьте 4 точки на схеме</h3>
-            <p className="text-sm text-gray-500 mb-2">
-              В том же порядке, что и на видео
-            </p>
-            <p className="text-sm text-gray-500 mb-4">
-              Размер схемы: {frameWidth}x{frameHeight}
-            </p>
             <p className="text-sm text-gray-500 mb-4">
               Отмечено точек: {mapPoints.length}/4
             </p>

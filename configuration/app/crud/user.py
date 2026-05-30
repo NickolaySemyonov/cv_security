@@ -48,14 +48,5 @@ class CRUDUser:
     @staticmethod
     def get_all_operators(db: Session) -> list[User]:
         return db.query(User).filter(User.role == 'operator').all()
-    
-    @staticmethod
-    def delete_user(db: Session, user_id: int) -> bool:
-        user = CRUDUser.get_by_id(db, user_id)
-        if not user or user.role == 'admin':
-            return False
-        db.delete(user)
-        db.commit()
-        return True
 
 user = CRUDUser()

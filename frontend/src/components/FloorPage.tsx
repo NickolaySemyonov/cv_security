@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../config/axios';
 import Header from './Header';
@@ -6,15 +6,16 @@ import Footer from './Footer';
 import { ZoneManagementPanel } from './ZoneManagementPanel';
 import ScheduleManager from './ScheduleManager';
 import ZonesListModal from './ZonesListModal';
+import HomographyCalibration from './HomographyCalibration';
 import { useSvgRenderer } from '../hooks/useSvgRenderer';
 import { useCameraDetection } from '../hooks/useCameraDetection';
+import { useAlert } from './CustomAlert';
 
 interface Floor {
   id: number;
   number: number;
   place: string;
   map: string;
-  is_calibrated?: boolean;
 }
 
 interface User {
@@ -30,6 +31,7 @@ interface Camera {
   visible_zone: { vertices: number[][] };
   is_active: boolean;
   is_configured?: boolean;
+  rotation?: number;
 }
 
 interface Zone {
@@ -52,6 +54,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const location = useLocation();
   const decodedPlace = decodeURIComponent(place || '');
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const { showAlert, AlertComponent } = useAlert();
   
   const [floors, setFloors] = useState<Floor[]>([]);
   const [currentFloor, setCurrentFloor] = useState<Floor | null>(null);
@@ -63,6 +66,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [updateTrigger, setUpdateTrigger] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [floorCameraIds, setFloorCameraIds] = useState<number[]>([]);
+  const [blinkingZoneId, setBlinkingZoneId] = useState<number | null>(null);
   
   const [isSelectingZone, setIsSelectingZone] = useState(false);
   const [selectedCameras, setSelectedCameras] = useState<Set<number>>(new Set());
@@ -70,13 +74,18 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [savingZone, setSavingZone] = useState(false);
   const [scheduleArea, setScheduleArea] = useState<Zone | null>(null);
   const [showZonesModal, setShowZonesModal] = useState(false);
+  const [showHomographyCalibration, setShowHomographyCalibration] = useState(false);
+  const [selectedCameraForCalibration, setSelectedCameraForCalibration] = useState<Camera | null>(null);
 
   const isAdmin = user?.role === 'admin';
+  const isOperator = user?.role === 'operator';
 
   const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useCameraDetection();
   const { getSvgWithAllElements } = useSvgRenderer(
     cameras, zones, isSelectingZone, selectedCameras, editingZone, 
-    getDetectionsByFloor, currentFloor?.id || 0
+    getDetectionsByFloor, currentFloor?.id || 0,
+    blinkingZoneId,
+    isAdmin
   );
 
   const getFloorFromUrl = () => {
@@ -157,22 +166,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     return () => window.removeEventListener('focus', handleFocus);
   }, [currentFloor?.id]);
 
-  useEffect(() => {
-    const interval = setInterval(async () => {
-      if (currentFloor?.id) {
-        try {
-          await api.post('/areas/update-colors-by-schedule');
-          await fetchZones();
-          setUpdateTrigger(prev => prev + 1);
-        } catch (error) {
-          console.error('Ошибка обновления цветов:', error);
-        }
-      }
-    }, 30000);
-    
-    return () => clearInterval(interval);
-  }, [currentFloor?.id]);
-
   const fetchFloors = async () => {
     try {
       setLoading(true);
@@ -220,21 +213,16 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const handleDeleteFloor = async () => {
     if (!currentFloor) return;
     
-    const confirmMessage = `Вы действительно хотите удалить этаж ${currentFloor.number} у объекта "${decodedPlace}"?\n\nВсе камеры на этом этаже также будут удалены.`;
-    
-    if (!window.confirm(confirmMessage)) return;
+    if (!window.confirm(`Вы действительно хотите удалить этаж ${currentFloor.number} у объекта "${decodedPlace}"?\n\nВсе камеры и зоны на этом этаже также будут удалены.`)) return;
     
     try {
       await api.delete(`/floors/${currentFloor.id}`);
-      window.location.href = '/objects';
+      showAlert('Этаж успешно удалён', 'success');
+      setTimeout(() => {
+        window.location.href = '/objects';
+      }, 1000);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Ошибка при удалении этажа');
-    }
-  };
-
-  const handleSetup = () => {
-    if (currentFloor?.id) {
-      navigate(`/floors/${currentFloor.id}/setup`);
+      showAlert(error.response?.data?.detail || 'Ошибка при удалении этажа', 'error');
     }
   };
 
@@ -307,7 +295,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     
     if (editingZone) {
       if (cameraInZone && cameraZone?.id !== editingZone.id) {
-        alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`);
+        showAlert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
         return;
       }
       const newSelected = new Set(selectedCameras);
@@ -321,7 +309,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
     
     if (cameraInZone) {
-      alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`);
+      showAlert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
       return;
     }
     
@@ -336,14 +324,14 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   const saveZone = async () => {
     if (selectedCameras.size === 0) {
-      alert('Выберите хотя бы одну камеру для зоны');
+      showAlert('Выберите хотя бы одну камеру для зоны', 'warning');
       return;
     }
 
     if (!editingZone) {
       const camerasInOtherZones = Array.from(selectedCameras).filter(camId => isCameraInAnyZone(camId));
       if (camerasInOtherZones.length > 0) {
-        alert(`❌ Невозможно создать зону!\n\nНекоторые камеры уже принадлежат другим зонам.`);
+        showAlert('❌ Невозможно создать зону! Некоторые камеры уже принадлежат другим зонам.', 'error');
         return;
       }
     }
@@ -354,19 +342,21 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
         await api.patch(`/areas/${editingZone.id}`, {
           camera_ids: Array.from(selectedCameras)
         });
+        showAlert('Зона успешно обновлена', 'success');
       } else {
         await api.post('/areas/', {
           type: 'green',
           floor_id: currentFloor!.id,
           camera_ids: Array.from(selectedCameras)
         });
+        showAlert('Зона успешно создана', 'success');
       }
       
       await fetchZones();
       exitZoneSelectionMode();
     } catch (error: any) {
       console.error('Ошибка сохранения зоны:', error);
-      alert(error.response?.data?.detail || 'Ошибка при сохранении зоны');
+      showAlert(error.response?.data?.detail || 'Ошибка при сохранении зоны', 'error');
     } finally {
       setSavingZone(false);
     }
@@ -377,9 +367,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     try {
       await api.delete(`/areas/${zoneId}`);
       await fetchZones();
+      showAlert('Зона успешно удалена', 'success');
     } catch (error) {
       console.error('Ошибка удаления зоны:', error);
-      alert('Ошибка при удалении зоны');
+      showAlert('Ошибка при удалении зоны', 'error');
     }
   };
 
@@ -392,11 +383,29 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     setUpdateTrigger(prev => prev + 1);
   };
 
+  const handleCameraClick = (cameraId: number) => {
+    if (!isAdmin) return;
+    const camera = cameras.find(c => c.id === cameraId);
+    if (camera) {
+      setSelectedCameraForCalibration(camera);
+      setShowHomographyCalibration(true);
+    }
+  };
+
   const handleSvgClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (!isSelectingZone) return;
-    
     const target = e.target as HTMLElement;
     const selectableElement = target.closest('.selectable-zone, .selectable-camera');
+    const cameraElement = target.closest('.clickable-camera');
+    
+    if (cameraElement && !isSelectingZone && isAdmin) {
+      const cameraId = parseInt(cameraElement.getAttribute('data-camera-id') || '0');
+      if (cameraId) {
+        handleCameraClick(cameraId);
+        return;
+      }
+    }
+    
+    if (!isSelectingZone) return;
     
     if (selectableElement) {
       const cameraId = parseInt(selectableElement.getAttribute('data-camera-id') || '0');
@@ -429,15 +438,20 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     return svg;
   };
 
+  const svgHtml = useMemo(() => {
+    if (!currentFloor?.map) return '';
+    return getSvgWithAllElements(normalizeSvg(currentFloor.map));
+  }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingZoneId]);
+
   const configuredCameras = cameras.filter(c => c.is_configured === true);
   const hasConfiguredCameras = configuredCameras.length > 0;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
-        <Header user={user} onLogout={onLogout} title={decodedPlace} />
+      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+        <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
         <main className="flex-grow flex justify-center items-center">
-          <div className="text-xl text-gray-600">Загрузка этажей...</div>
+          <div className="text-xl text-gray-400">Загрузка этажей...</div>
         </main>
         <Footer />
       </div>
@@ -446,10 +460,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   if (error || !currentFloor) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
-        <Header user={user} onLogout={onLogout} title={decodedPlace} />
+      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+        <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
         <main className="flex-grow flex justify-center items-center">
-          <div className="text-xl text-red-600">{error || 'Этаж не найден'}</div>
+          <div className="text-xl text-red-400">{error || 'Этаж не найден'}</div>
         </main>
         <Footer />
       </div>
@@ -470,10 +484,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
         <button
           key={floor.number}
           onClick={() => handleFloorChange(floor.number)}
-          className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-colors ${
+          className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
             selectedFloorNumber === floor.number
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
           }`}
         >
           {floor.number}
@@ -487,10 +501,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
       <button
         key={firstFloor.number}
         onClick={() => handleFloorChange(firstFloor.number)}
-        className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-colors ${
+        className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
           selectedFloorNumber === firstFloor.number
-            ? 'bg-blue-600 text-white shadow-sm'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+            : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
         }`}
       >
         {firstFloor.number}
@@ -498,7 +512,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     );
     
     if (currentIndex > 2) {
-      buttons.push(<span key="dots1" className="text-gray-400 px-0.5 text-sm flex-shrink-0">...</span>);
+      buttons.push(<span key="dots1" className="text-gray-500 px-0.5 text-sm flex-shrink-0">...</span>);
     }
     
     let start = Math.max(1, currentIndex - 1);
@@ -515,10 +529,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           <button
             key={floor.number}
             onClick={() => handleFloorChange(floor.number)}
-            className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-colors ${
+            className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
               selectedFloorNumber === floor.number
-                ? 'bg-blue-600 text-white shadow-sm'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
             }`}
           >
             {floor.number}
@@ -528,7 +542,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
     
     if (currentIndex < totalFloors - 3) {
-      buttons.push(<span key="dots2" className="text-gray-400 px-0.5 text-sm flex-shrink-0">...</span>);
+      buttons.push(<span key="dots2" className="text-gray-500 px-0.5 text-sm flex-shrink-0">...</span>);
     }
     
     if (lastFloor && lastFloor.number !== firstFloor.number) {
@@ -536,10 +550,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
         <button
           key={lastFloor.number}
           onClick={() => handleFloorChange(lastFloor.number)}
-          className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-colors ${
+          className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
             selectedFloorNumber === lastFloor.number
-              ? 'bg-blue-600 text-white shadow-sm'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
+              : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
           }`}
         >
           {lastFloor.number}
@@ -551,14 +565,15 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
-      <Header user={user} onLogout={onLogout} title={decodedPlace} />
+    <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+      {AlertComponent}
+      <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
 
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow">
-        <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
+        <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <button onClick={handleBack} className="text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <button onClick={handleBack} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
                 </svg>
@@ -566,7 +581,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
               </button>
               
               {isAdmin && (
-                <button onClick={handleDeleteFloor} className="text-red-600 hover:text-red-800" title="Удалить этаж">
+                <button onClick={handleDeleteFloor} className="text-red-400 hover:text-red-300 transition-colors" title="Удалить этаж">
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                   </svg>
@@ -575,11 +590,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             </div>
             
             <div className="flex items-center gap-1">
-              <label className="text-gray-700 font-medium whitespace-nowrap mr-1">Этаж:</label>
+              <label className="text-gray-300 font-medium whitespace-nowrap mr-1">Этаж:</label>
               
               <button onClick={handlePrevFloor} disabled={!hasPrev}
-                className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50"
-                style={{ backgroundColor: hasPrev ? '#f3f4f6' : '#f9fafb' }}>
+                className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50 bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                 </svg>
@@ -588,8 +602,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
               {renderFloorButtons()}
               
               <button onClick={handleNextFloor} disabled={!hasNext}
-                className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50"
-                style={{ backgroundColor: hasNext ? '#f3f4f6' : '#f9fafb' }}>
+                className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50 bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-all">
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
@@ -598,20 +611,8 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             
             <div className="flex gap-2">
               {isAdmin && (
-                <button onClick={handleSetup}
-                  className={`px-3 py-1.5 rounded-lg text-sm font-medium flex items-center gap-1 ${
-                    currentFloor.is_calibrated ? 'bg-green-500 hover:bg-green-600 text-white' : 'bg-purple-500 hover:bg-purple-600 text-white'
-                  }`}>
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                  </svg>
-                  Калибровка
-                </button>
-              )}
-
-              {isAdmin && currentFloor.is_calibrated && (
                 <button onClick={handleAddCamera}
-                  className="bg-blue-500 text-white px-3 py-1.5 rounded-lg hover:bg-blue-600 flex items-center gap-1 text-sm">
+                  className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-3 py-1.5 rounded-xl text-sm flex items-center gap-1 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg shadow-blue-500/25">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
                   </svg>
@@ -622,8 +623,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           </div>
         </div>
 
-        {/* Для АДМИНА - полная панель управления зонами */}
-        {isAdmin && currentFloor.is_calibrated && hasConfiguredCameras && (
+        {isAdmin && hasConfiguredCameras && (
           <ZoneManagementPanel
             zones={zones}
             isSelectingZone={isSelectingZone}
@@ -638,23 +638,22 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           />
         )}
 
-        {/* Для ОПЕРАТОРА - только кнопка "Показать зоны" */}
-        {!isAdmin && currentFloor.is_calibrated && hasConfiguredCameras && zones.length > 0 && (
-          <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
+        {!isAdmin && hasConfiguredCameras && zones.length > 0 && (
+          <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500" />
-                  <span className="text-xs text-gray-600">Зелёная зона</span>
+                  <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
+                  <span className="text-xs text-gray-300">Зелёная зона</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500" />
-                  <span className="text-xs text-gray-600">Красная зона</span>
+                  <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
+                  <span className="text-xs text-gray-300">Красная зона</span>
                 </div>
               </div>
               <button 
                 onClick={() => setShowZonesModal(true)}
-                className="text-xs bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg hover:bg-blue-200 transition-colors"
+                className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-600 transition-colors"
               >
                 📋 Показать зоны ({zones.length})
               </button>
@@ -662,24 +661,20 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           </div>
         )}
 
-        {/* Карта */}
-        <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div className="p-4 border-b border-gray-100">
-            <h2 className="text-lg font-semibold text-gray-800">
+        <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 overflow-hidden shadow-xl">
+          <div className="p-4 border-b border-gray-600/50">
+            <h2 className="text-lg font-semibold text-gray-200">
               {decodedPlace} - Этаж {currentFloor.number}
-              {currentFloor.is_calibrated && (
-                <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✓</span>
-              )}
             </h2>
           </div>
           <div 
-            className="p-4 bg-gray-50 flex justify-center"
+            className="p-4 bg-gray-900/30 flex justify-center"
             style={{ minHeight: '500px' }}
             onClick={handleSvgClick}
           >
             <div
               ref={mapContainerRef}
-              dangerouslySetInnerHTML={{ __html: getSvgWithAllElements(normalizeSvg(currentFloor.map)) }}
+              dangerouslySetInnerHTML={{ __html: svgHtml }}
               style={{ 
                 maxWidth: '100%',
                 height: 'auto',
@@ -726,6 +721,24 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           onDeleteZone={deleteZone}
           onOpenSchedule={handleOpenSchedule}
           isAdmin={isAdmin}
+          showAlert={showAlert}
+        />
+      )}
+
+      {showHomographyCalibration && selectedCameraForCalibration && isAdmin && (
+        <HomographyCalibration
+          cameraId={selectedCameraForCalibration.id}
+          cameraZone={selectedCameraForCalibration.visible_zone.vertices}
+          cameraPosition={selectedCameraForCalibration.position}
+          svgContent={currentFloor.map}
+          onSave={() => {
+            setShowHomographyCalibration(false);
+            fetchCameras();
+            showAlert('Калибровка камеры успешно сохранена', 'success');
+          }}
+          onCancel={() => setShowHomographyCalibration(false)}
+          isReCalibration={selectedCameraForCalibration.is_configured || false}
+          showAlert={showAlert}
         />
       )}
     </div>

@@ -2,14 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
-from models import User
+from models import User, Action
 from schemas import UserCreate, UserResponse
 from security import get_current_user, require_admin
 from crud.user import user as user_crud
 from crud.logs import action_logger
 
 router = APIRouter(prefix="/users", tags=["users"])
-
 
 @router.post("/register-operator", response_model=UserResponse)
 async def register_operator(
@@ -36,7 +35,6 @@ async def register_operator(
         role=new_user.role
     )
 
-
 @router.get("/operators", response_model=List[UserResponse])
 async def get_operators(
     db: Session = Depends(get_db),
@@ -48,7 +46,6 @@ async def get_operators(
         for op in operators
     ]
 
-
 @router.delete("/{user_id}")
 async def delete_operator(
     user_id: int,
@@ -58,15 +55,30 @@ async def delete_operator(
     if current_user.id == user_id:
         raise HTTPException(400, "Нельзя удалить самого себя")
     
-    deleted = user_crud.delete_user(db, user_id)
-    if not deleted:
-        raise HTTPException(404, "Оператор не найден или это администратор")
+    user_to_delete = db.query(User).filter(User.id == user_id).first()
+    if not user_to_delete:
+        raise HTTPException(404, "Пользователь не найден")
     
-    action_logger.log(
-        db,
-        user_id=current_user.id,
-        title="УДАЛЕНИЕ ОПЕРАТОРА",
-        text=f"Админ {current_user.login} удалил оператора ID {user_id}"
-    )
+    if user_to_delete.role == 'admin':
+        raise HTTPException(400, "Нельзя удалить администратора")
     
-    return {"message": "Оператор удалён"}
+    try:
+        actions = db.query(Action).filter(Action.user_id == user_id).all()
+        for action in actions:
+            db.delete(action)
+        
+        db.delete(user_to_delete)
+        db.commit()
+        
+        action_logger.log(
+            db,
+            user_id=current_user.id,
+            title="УДАЛЕНИЕ ОПЕРАТОРА",
+            text=f"Админ {current_user.login} удалил оператора {user_to_delete.login}"
+        )
+        
+        return {"message": "Оператор удалён", "success": True}
+    except Exception as e:
+        db.rollback()
+        print(f"Ошибка при удалении: {e}")
+        raise HTTPException(500, f"Ошибка при удалении: {str(e)}")

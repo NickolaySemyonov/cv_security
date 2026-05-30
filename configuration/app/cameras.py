@@ -9,16 +9,17 @@ from crud.logs import action_logger
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 
-
 @router.get("/floor/{floor_id}", response_model=List[CameraResponse])
 async def get_cameras_by_floor(
     floor_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    floor = db.query(Floor).filter(Floor.id == floor_id).first()
+    if not floor:
+        raise HTTPException(404, "Этаж не найден")
     cameras = db.query(Camera).filter(Camera.floor_id == floor_id).all()
     return cameras
-
 
 @router.get("/floor/{floor_id}/ids")
 async def get_camera_ids_by_floor(
@@ -28,7 +29,6 @@ async def get_camera_ids_by_floor(
 ):
     cameras = db.query(Camera.id).filter(Camera.floor_id == floor_id).all()
     return [camera.id for camera in cameras]
-
 
 @router.get("/{camera_id}", response_model=CameraResponse)
 async def get_camera(
@@ -40,7 +40,6 @@ async def get_camera(
     if not camera:
         raise HTTPException(404, "Камера не найдена")
     return camera
-
 
 @router.post("/", response_model=CameraResponse)
 async def create_camera(
@@ -76,8 +75,7 @@ async def create_camera(
     
     return camera
 
-
-@router.patch("/{camera_id}")
+@router.patch("/{camera_id}", response_model=CameraResponse)
 async def update_camera(
     camera_id: int,
     camera_data: CameraUpdate,
@@ -95,7 +93,6 @@ async def update_camera(
     db.commit()
     db.refresh(camera)
     return camera
-
 
 @router.patch("/{camera_id}/homography")
 async def update_camera_homography(
@@ -125,7 +122,6 @@ async def update_camera_homography(
     )
     
     return {"message": "Гомография сохранена"}
-
 
 @router.delete("/{camera_id}")
 async def delete_camera(

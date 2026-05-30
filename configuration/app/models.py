@@ -60,13 +60,6 @@ class Floor(Base):
     number: Mapped[int] = mapped_column(SmallInteger, nullable=False)
     place: Mapped[str] = mapped_column(String(100), nullable=False)
     map: Mapped[str] = mapped_column(Text, nullable=False)
-    
-    calibration_points: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    calibration_distance: Mapped[float | None] = mapped_column(Float, nullable=True)
-    real_width_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
-    real_height_meters: Mapped[float | None] = mapped_column(Float, nullable=True)
-    pixels_per_meter: Mapped[float | None] = mapped_column(Float, nullable=True)
-    is_calibrated: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     areas: Mapped[list['Area']] = relationship('Area', back_populates='floor')
     cameras: Mapped[list['Camera']] = relationship('Camera', back_populates='floor')

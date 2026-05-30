@@ -149,10 +149,10 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
         <Header user={user} onLogout={onLogout} title="Добавление камер" />
         <main className="flex-grow flex justify-center items-center">
-          <div className="text-xl text-gray-600">Загрузка...</div>
+          <div className="text-xl text-gray-400">Загрузка...</div>
         </main>
         <Footer />
       </div>
@@ -164,34 +164,40 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
       <Header user={user} onLogout={onLogout} title={`Добавление камер: ${floor?.place} - Этаж ${floor?.number}`} />
 
       <main className="max-w-6xl mx-auto px-6 py-8 flex-grow">
-        <div className="bg-white rounded-2xl shadow-lg p-6">
+        <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 shadow-xl p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold text-gray-800">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
               Камеры этажа
             </h1>
             <div className="flex gap-3">
               {!showCameraDrawer && (
                 <button
                   onClick={() => setShowCameraDrawer(true)}
-                  className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                  className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-2 rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/25"
                 >
-                  + Добавить камеру
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                  </svg>
+                  Добавить камеру
                 </button>
               )}
               <button
                 onClick={handleBackToFloor}
-                className="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-2"
+                className="bg-gray-700 text-gray-300 px-4 py-2 rounded-xl hover:bg-gray-600 transition-all duration-200 flex items-center gap-2"
               >
-                ← Вернуться к этажу
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Вернуться к этажу
               </button>
             </div>
           </div>
 
-          <div className="border rounded-lg p-4 bg-gray-50">
+          <div className="border border-gray-600 rounded-xl p-4 bg-gray-900/30">
             {showCameraDrawer && floor?.map ? (
               <CameraDrawer
                 svgContent={floor.map}
@@ -202,8 +208,10 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
             ) : (
               <div className="overflow-auto max-h-[600px]">
                 {cameras.length === 0 && (
-                  <div className="text-center text-gray-500 mb-4 py-8">
-                    🎥 Нет добавленных камер. Нажмите "+ Добавить камеру"
+                  <div className="text-center text-gray-400 mb-4 py-8">
+                    <div className="text-5xl mb-3">🎥</div>
+                    <p>Нет добавленных камер</p>
+                    <p className="text-sm text-gray-500 mt-1">Нажмите "+ Добавить камеру"</p>
                   </div>
                 )}
                 <div
@@ -215,34 +223,34 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
           </div>
 
           {cameras.length > 0 && !showCameraDrawer && (
-            <div className="border-t border-gray-200 mt-6 pt-4">
-              <h3 className="text-md font-semibold text-gray-700 mb-3">
+            <div className="border-t border-gray-700 mt-6 pt-4">
+              <h3 className="text-md font-semibold text-gray-300 mb-3">
                 Список камер ({cameras.length})
               </h3>
               <div className="space-y-2 max-h-48 overflow-auto">
                 {cameras.map((camera, idx) => (
-                  <div key={camera.id} className="bg-gray-50 rounded-lg p-3">
+                  <div key={camera.id} className="bg-gray-700/50 rounded-xl p-3 border border-gray-600">
                     <div className="flex justify-between items-start">
                       <div className="flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium">Камера {idx + 1}</span>
-                          <span className="text-sm text-gray-500">
+                          <span className="font-medium text-gray-200">Камера {idx + 1}</span>
+                          <span className="text-sm text-gray-400">
                             Позиция: ({Math.round(camera.position.x)}, {Math.round(camera.position.y)})
                           </span>
                           {camera.rotation !== undefined && camera.rotation !== null && (
-                            <span className="text-sm text-blue-500">
+                            <span className="text-sm text-blue-400">
                               Угол: {Math.round(camera.rotation * 180 / Math.PI)}°
                             </span>
                           )}
                           {camera.is_configured ? (
-                            <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30 flex items-center gap-1">
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                               </svg>
                               Откалибрована
                             </span>
                           ) : (
-                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30 flex items-center gap-1">
                               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                               </svg>
@@ -255,21 +263,21 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
                         {camera.is_configured ? (
                           <button
                             onClick={() => openHomographyCalibration(camera)}
-                            className="text-blue-500 hover:text-blue-700 text-sm px-3 py-1 rounded hover:bg-blue-50"
+                            className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
                           >
                             Перекалибровать
                           </button>
                         ) : (
                           <button
                             onClick={() => openHomographyCalibration(camera)}
-                            className="text-blue-500 hover:text-blue-700 text-sm px-3 py-1 rounded hover:bg-blue-50"
+                            className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
                           >
                             Задать точки гомографии
                           </button>
                         )}
                         <button
                           onClick={() => handleDeleteCamera(camera.id)}
-                          className="text-red-500 hover:text-red-700 text-sm px-3 py-1 rounded hover:bg-red-50"
+                          className="text-red-400 hover:text-red-300 text-sm px-3 py-1 rounded-lg hover:bg-red-500/10 transition-colors"
                         >
                           Удалить
                         </button>

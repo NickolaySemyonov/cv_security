@@ -1,4 +1,3 @@
-// frontend/src/components/FileInput.tsx
 import { RefObject, ChangeEvent } from 'react';
 
 interface FileInputProps {
@@ -9,7 +8,7 @@ interface FileInputProps {
   hidden?: boolean;
 }
 
-const FileInput = ({ fileInputRef, onFileSelect, label, helperText }: FileInputProps) => {
+const FileInput = ({ fileInputRef, onFileSelect, label, helperText, hidden }: FileInputProps) => {
   return (
     <div className="mb-4">
       <label className="block text-gray-700 font-medium mb-2">{label}</label>
@@ -19,6 +18,7 @@ const FileInput = ({ fileInputRef, onFileSelect, label, helperText }: FileInputP
         accept=".svg"
         onChange={onFileSelect}
         className="w-full"
+        hidden={hidden}
       />
       {helperText && (
         <p className="text-gray-400 text-sm mt-1">{helperText}</p>

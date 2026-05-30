@@ -1,4 +1,3 @@
-// frontend/src/components/LogsModal.tsx
 import { useState, useEffect } from 'react';
 import api from '../config/axios';
 
@@ -96,26 +95,31 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-6xl max-h-[90vh] flex flex-col">
-        {/* Заголовок */}
-        <div className="flex justify-between items-center p-6 border-b border-gray-200">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">📋 Журнал действий</h2>
-            <p className="text-sm text-gray-500 mt-1">Всего записей: {total}</p>
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col animate-scaleIn">
+        <div className="flex justify-between items-center p-5 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="text-xl font-bold text-gray-800">Журнал действий</h2>
+              <p className="text-sm text-gray-500">Всего записей: {total}</p>
+            </div>
           </div>
-          <button
-            onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+          <button 
+            onClick={onClose} 
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
           >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
           </button>
         </div>
 
-        {/* Фильтры */}
-        <div className="p-4 bg-gray-50 border-b border-gray-200">
+        <div className="p-4 bg-gray-50 border-b border-gray-100">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <input
               type="text"
@@ -125,7 +129,7 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
             />
             
             <select
@@ -134,7 +138,7 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
                 setFilterUser(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
             >
               <option value="">Все пользователи</option>
               {users.map(user => (
@@ -149,7 +153,7 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
                 setDateFrom(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
               placeholder="С даты"
             />
 
@@ -160,12 +164,11 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
                 setDateTo(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none"
               placeholder="По дату"
             />
           </div>
 
-          {/* Только кнопка сброса фильтров, без кнопки очистки логов */}
           <div className="flex justify-start mt-3">
             <button
               onClick={() => {
@@ -175,30 +178,29 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
                 setDateTo('');
                 setPage(1);
               }}
-              className="text-sm text-blue-600 hover:text-blue-800"
+              className="text-sm text-blue-600 hover:text-blue-700"
             >
               Сбросить фильтры
             </button>
           </div>
         </div>
 
-        {/* Список логов */}
         <div className="flex-1 overflow-auto p-4">
           {loading ? (
             <div className="flex justify-center items-center h-64">
-              <div className="text-gray-500">Загрузка логов...</div>
+              <div className="text-gray-400">Загрузка логов...</div>
             </div>
           ) : logs.length === 0 ? (
-            <div className="text-center text-gray-500 py-12">
+            <div className="text-center text-gray-400 py-12">
               <div className="text-6xl mb-4">📭</div>
               <p>Нет записей в журнале</p>
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {logs.map((log) => (
                 <div
                   key={log.id}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  className="bg-white border border-gray-100 rounded-xl p-4 hover:shadow-md transition-shadow"
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
@@ -207,12 +209,12 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
                         <span className={`font-semibold ${getTitleColor(log.title)}`}>
                           {log.title}
                         </span>
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-1 rounded-full">
+                        <span className="text-xs bg-gray-100 text-gray-500 px-2 py-1 rounded-full">
                           {formatDate(log.time)}
                         </span>
                       </div>
                       
-                      <p className="text-gray-700 text-sm mb-2">{log.text}</p>
+                      <p className="text-gray-600 text-sm mb-2">{log.text}</p>
                       
                       <div className="flex items-center gap-4 text-xs text-gray-400">
                         <div className="flex items-center gap-1">
@@ -236,13 +238,12 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
           )}
         </div>
 
-        {/* Пагинация */}
         {totalPages > 1 && (
-          <div className="flex justify-center items-center gap-2 p-4 border-t border-gray-200">
+          <div className="flex justify-center items-center gap-2 p-4 border-t border-gray-100">
             <button
               onClick={() => setPage(p => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="px-3 py-1 bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200"
+              className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl disabled:opacity-50 hover:bg-gray-200 transition-all"
             >
               ← Назад
             </button>
@@ -254,7 +255,7 @@ const LogsModal = ({ isOpen, onClose }: LogsModalProps) => {
             <button
               onClick={() => setPage(p => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="px-3 py-1 bg-gray-100 rounded-lg disabled:opacity-50 hover:bg-gray-200"
+              className="px-4 py-2 bg-gray-100 text-gray-600 rounded-xl disabled:opacity-50 hover:bg-gray-200 transition-all"
             >
               Вперед →
             </button>
