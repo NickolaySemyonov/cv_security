@@ -30,7 +30,11 @@ rabbit_router = RabbitRouter(
     RabbitExchange(CV_EXCHANGE_NAME, type=ExchangeType.FANOUT, durable=True)
 )
 async def handle_detection(message: dict):
-    await conn_mgr.broadcast(message)
+    detection_message = {
+        "type": "detection",
+        "message": message
+    }
+    await conn_mgr.broadcast(detection_message)
 
 
 @rabbit_router.subscriber(
@@ -38,7 +42,11 @@ async def handle_detection(message: dict):
     RabbitExchange(ALERTS_EXCHANGE_NAME, type=ExchangeType.TOPIC, durable=True)
 )
 async def handle_alert(message: dict):
-    await conn_mgr.broadcast(message)
+    alert_message = {
+        "type": "alert",
+        "message": message
+    }
+    await conn_mgr.broadcast(alert_message)
 
 
 # endregion

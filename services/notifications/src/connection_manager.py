@@ -37,10 +37,7 @@ class ConnectionManager:
         for websocket in connections:
             try:
                 await websocket.send_text(
-                    json.dumps({
-                        "source": "rabbitmq",
-                        "data": message
-                    })
+                    json.dumps(message)
                 )
             except Exception:
                 disconnected.add(websocket)
