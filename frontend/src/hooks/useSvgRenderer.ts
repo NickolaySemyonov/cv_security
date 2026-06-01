@@ -36,6 +36,9 @@ export const useSvgRenderer = (
   isAdmin: boolean = true
 ) => {
   
+  const svgCacheRef = useRef<Map<string, string>>(new Map());
+  const lastDetectionsRef = useRef<string>('');
+  
   const getZoneOfCamera = useCallback((cameraId: number): Zone | undefined => 
     zones.find(zone => zone.cameras.some(cam => cam.id === cameraId)), [zones]);
   
@@ -135,16 +138,31 @@ export const useSvgRenderer = (
       return result;
     }
     
-    const isBlinking = blinkingAreaId === zone.id;
+    // Проверяем, мигает ли эта зона
+    const isBlinking = blinkingAreaId !== null && blinkingAreaId === zone.id;
     
-    const color = zone.type === 'red' 
-      ? (isBlinking ? 'rgba(255, 0, 0, 0.8)' : 'rgba(239, 68, 68, 0.35)')
-      : (isBlinking ? 'rgba(255, 100, 0, 0.6)' : 'rgba(34, 197, 94, 0.3)');
-    const strokeColor = zone.type === 'red' 
-      ? (isBlinking ? '#FF0000' : '#EF4444')
-      : (isBlinking ? '#FF6600' : '#22C55E');
-    const strokeWidth = isBlinking ? '4' : '3';
-    const animation = isBlinking ? 'animation: blink 0.8s ease-in-out infinite;' : '';
+    // Для мигающей зоны используем ярко-красный цвет с анимацией
+    let color, strokeColor, strokeWidth, animation;
+    
+    if (isBlinking) {
+      // Мигающая зона - ярко-красная
+      color = 'rgba(255, 0, 0, 0.8)';
+      strokeColor = '#FF0000';
+      strokeWidth = '4';
+      animation = 'animation: blink 0.8s ease-in-out infinite;';
+    } else if (zone.type === 'red') {
+      // Обычная красная зона
+      color = 'rgba(239, 68, 68, 0.35)';
+      strokeColor = '#EF4444';
+      strokeWidth = '3';
+      animation = '';
+    } else {
+      // Зелёная зона
+      color = 'rgba(34, 197, 94, 0.3)';
+      strokeColor = '#22C55E';
+      strokeWidth = '3';
+      animation = '';
+    }
     
     let result = '';
     if (isBlinking) {
@@ -152,7 +170,7 @@ export const useSvgRenderer = (
         <style>
           @keyframes blink {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.4; }
+            50% { opacity: 0.3; }
           }
         </style>
       `;
@@ -167,23 +185,35 @@ export const useSvgRenderer = (
     return result;
   }, [blinkingAreaId]);
   
-  const renderDetectionPoint = useCallback((detection: DetectionPoint, viewBox: { x: number; y: number; width: number; height: number }): string => {
-    const isInViewBox = detection.x >= viewBox.x && detection.x <= viewBox.x + viewBox.width &&
-                        detection.y >= viewBox.y && detection.y <= viewBox.y + viewBox.height;
-    if (!isInViewBox) return '';
+  const renderDetectionPoints = useCallback((detections: DetectionPoint[], viewBox: { x: number; y: number; width: number; height: number }): string => {
+    if (!detections.length) return '';
     
-    return `<g transform="translate(${detection.x - 8}, ${detection.y - 8})">
-      <circle cx="8" cy="8" r="8" fill="#FF4444" stroke="#FFFFFF" stroke-width="2" />
-      <circle cx="8" cy="8" r="3" fill="#FFFFFF" />
-    </g>`;
+    let pointsHtml = '';
+    detections.forEach(detection => {
+      const isInViewBox = detection.x >= viewBox.x && detection.x <= viewBox.x + viewBox.width &&
+                          detection.y >= viewBox.y && detection.y <= viewBox.y + viewBox.height;
+      if (isInViewBox) {
+        pointsHtml += `<g transform="translate(${detection.x - 8}, ${detection.y - 8})">
+          <circle cx="8" cy="8" r="8" fill="#FF4444" stroke="#FFFFFF" stroke-width="2" />
+          <circle cx="8" cy="8" r="3" fill="#FFFFFF" />
+        </g>`;
+      }
+    });
+    return pointsHtml;
   }, []);
   
-  const getSvgWithAllElements = useCallback((svgContent: string): string => {
+  const getBaseSvg = useCallback((svgContent: string): string => {
+    // Ключ кэша включает blinkingAreaId для перерисовки при мигании
+    const cacheKey = `${svgContent}_${cameras.length}_${zones.length}_${isSelectingZone}_${blinkingAreaId}`;
+    
+    if (svgCacheRef.current.has(cacheKey)) {
+      return svgCacheRef.current.get(cacheKey)!;
+    }
+    
     if (!svgContent) return '';
     
     let modifiedSvg = normalizeSvg(svgContent);
     const configuredCameras = cameras.filter(c => c.is_configured === true);
-    const viewBox = getViewBox(modifiedSvg);
     
     zones.forEach(zone => {
       const zoneHtml = renderZoneBackground(zone);
@@ -212,18 +242,40 @@ export const useSvgRenderer = (
       }
     });
     
-    const detections = getDetectionsByFloor(currentFloorId);
-    if (detections.length > 0) {
-      detections.forEach(detection => {
-        const pointHtml = renderDetectionPoint(detection, viewBox);
-        if (pointHtml) {
-          modifiedSvg = modifiedSvg.replace('</svg>', pointHtml + '</svg>');
-        }
-      });
+    svgCacheRef.current.set(cacheKey, modifiedSvg);
+    
+    if (svgCacheRef.current.size > 10) {
+      const firstKey = svgCacheRef.current.keys().next().value;
+      svgCacheRef.current.delete(firstKey);
     }
     
     return modifiedSvg;
-  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoint]);
+  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, blinkingAreaId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground]);
+  
+  const getSvgWithAllElements = useCallback((svgContent: string): string => {
+    const baseSvg = getBaseSvg(svgContent);
+    if (!baseSvg) return '';
+    
+    const detections = getDetectionsByFloor(currentFloorId);
+    const detectionsKey = JSON.stringify(detections.map(d => `${d.x},${d.y}`));
+    
+    if (lastDetectionsRef.current === detectionsKey && baseSvg.includes('<!--detections-placeholder-->')) {
+      return baseSvg;
+    }
+    
+    lastDetectionsRef.current = detectionsKey;
+    const viewBox = getViewBox(baseSvg);
+    const pointsHtml = renderDetectionPoints(detections, viewBox);
+    
+    if (baseSvg.includes('<!--detections-placeholder-->')) {
+      return baseSvg.replace('<!--detections-placeholder-->', pointsHtml);
+    }
+    
+    const svgEndIndex = baseSvg.lastIndexOf('</svg>');
+    if (svgEndIndex === -1) return baseSvg;
+    
+    return baseSvg.slice(0, svgEndIndex) + pointsHtml + baseSvg.slice(svgEndIndex);
+  }, [getBaseSvg, getDetectionsByFloor, currentFloorId, renderDetectionPoints]);
   
   return { getSvgWithAllElements };
 };

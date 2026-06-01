@@ -10,11 +10,11 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
   const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useWebSocket();
 
   useEffect(() => {
-    // При появлении нового уведомления запускаем мигание
+    // При появлении нового непрочитанного уведомления запускаем мигание
     const unreadNotifications = notifications.filter(n => !n.isRead);
     if (unreadNotifications.length > 0 && onAreaBlink) {
-      // Берем самое свежее уведомление (первое в списке)
       const latestArea = unreadNotifications[0].area_id;
+      console.log('🔴 Мигание зоны:', latestArea);
       onAreaBlink(latestArea);
     } else if (unreadNotifications.length === 0) {
       if (onAreaBlink) onAreaBlink(null);
