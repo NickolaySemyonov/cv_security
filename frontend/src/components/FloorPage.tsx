@@ -99,13 +99,12 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     setUpdateTrigger(prev => prev + 1);
   };
 
-  // Принудительная перерисовка при мигании
   useEffect(() => {
     if (blinkingAreaId !== null) {
-      console.log('🔴 Мигание зоны:', blinkingAreaId);
+      console.log('🔴 Начинаем мигание зоны:', blinkingAreaId);
       setForceRender(prev => prev + 1);
-      // Через 5 секунд отключаем мигание
       const timeout = setTimeout(() => {
+        console.log('🔴 Завершаем мигание зоны:', blinkingAreaId);
         setBlinkingAreaId(null);
         setForceRender(prev => prev + 1);
       }, 5000);
@@ -583,7 +582,15 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
       {AlertComponent}
-      <Header user={user} onLogout={onLogout} title={decodedPlace} onAreaBlink={setBlinkingAreaId} />
+      <Header 
+        user={user} 
+        onLogout={onLogout} 
+        title={decodedPlace} 
+        onAreaBlink={(areaId) => {
+          console.log('📢 FloorPage - получен onAreaBlink с areaId:', areaId);
+          setBlinkingAreaId(areaId);
+        }} 
+      />
 
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow">
         <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">
