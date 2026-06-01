@@ -2,22 +2,22 @@ import { useState, useEffect } from 'react';
 import { useWebSocket, Notification } from '../hooks/useWebSocket';
 
 interface NotificationPanelProps {
-  onZoneBlink?: (zoneId: number | null) => void;
+  onAreaBlink?: (areaId: number | null) => void;
 }
 
-const NotificationPanel = ({ onZoneBlink }: NotificationPanelProps) => {
+const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useWebSocket();
 
   useEffect(() => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
-    if (unreadNotifications.length > 0 && onZoneBlink) {
-      const latestZone = unreadNotifications[0].zone_id;
-      onZoneBlink(latestZone);
+    if (unreadNotifications.length > 0 && onAreaBlink) {
+      const latestArea = unreadNotifications[0].area_id;
+      onAreaBlink(latestArea);
     } else if (unreadNotifications.length === 0) {
-      if (onZoneBlink) onZoneBlink(null);
+      if (onAreaBlink) onAreaBlink(null);
     }
-  }, [notifications, onZoneBlink]);
+  }, [notifications, onAreaBlink]);
 
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -104,7 +104,7 @@ const NotificationPanel = ({ onZoneBlink }: NotificationPanelProps) => {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-red-500 text-lg animate-pulse">🔴</span>
                             <span className="font-semibold text-gray-300 text-sm">
-                              Зона #{notification.zone_id}
+                              Зона #{notification.area_id}
                             </span>
                             {!notification.isRead && (
                               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />

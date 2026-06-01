@@ -66,7 +66,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [updateTrigger, setUpdateTrigger] = useState(0);
   const [initialized, setInitialized] = useState(false);
   const [floorCameraIds, setFloorCameraIds] = useState<number[]>([]);
-  const [blinkingZoneId, setBlinkingZoneId] = useState<number | null>(null);
+  const [blinkingAreaId, setBlinkingAreaId] = useState<number | null>(null);
   
   const [isSelectingZone, setIsSelectingZone] = useState(false);
   const [selectedCameras, setSelectedCameras] = useState<Set<number>>(new Set());
@@ -83,7 +83,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const { getSvgWithAllElements } = useSvgRenderer(
     cameras, zones, isSelectingZone, selectedCameras, editingZone, 
     getDetectionsByFloor, currentFloor?.id || 0,
-    blinkingZoneId,
+    blinkingAreaId,
     isAdmin
   );
 
@@ -441,7 +441,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const svgHtml = useMemo(() => {
     if (!currentFloor?.map) return '';
     return getSvgWithAllElements(normalizeSvg(currentFloor.map));
-  }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingZoneId]);
+  }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingAreaId]);
 
   const configuredCameras = cameras.filter(c => c.is_configured === true);
   const hasConfiguredCameras = configuredCameras.length > 0;
@@ -449,7 +449,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
-        <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
+        <Header user={user} onLogout={onLogout} title={decodedPlace} onAreaBlink={setBlinkingAreaId} />
         <main className="flex-grow flex justify-center items-center">
           <div className="text-xl text-gray-400">Загрузка этажей...</div>
         </main>
@@ -461,7 +461,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   if (error || !currentFloor) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
-        <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
+        <Header user={user} onLogout={onLogout} title={decodedPlace} onAreaBlink={setBlinkingAreaId} />
         <main className="flex-grow flex justify-center items-center">
           <div className="text-xl text-red-400">{error || 'Этаж не найден'}</div>
         </main>
@@ -567,7 +567,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
       {AlertComponent}
-      <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
+      <Header user={user} onLogout={onLogout} title={decodedPlace} onAreaBlink={setBlinkingAreaId} />
 
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow">
         <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">

@@ -12,7 +12,7 @@ export interface Notification {
   id: string;
   info: string;
   camera_id: number;
-  zone_id: number;
+  area_id: number;
   timestamp: number;
   isRead: boolean;
 }
@@ -28,7 +28,7 @@ let detectionSubscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let notificationSubscribers: ((notifications: Notification[]) => void)[] = [];
 let globalDetections: DetectionPoint[] = [];
 let activeNotifications: Notification[] = [];
-let cameraInfoCache: Map<number, { minX: number; maxX: number; minY: number; maxY: number } | null> = new Map();
+let cameraInfoCache: Map<number, { zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> = new Map();
 let lastRenderTime = 0;
 const RENDER_INTERVAL = 50;
 
@@ -40,7 +40,24 @@ let isInitialized = false;
 
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
 
-async function loadCameraInfo(cameraId: number): Promise<{ minX: number; maxX: number; minY: number; maxY: number } | null> {
+function isPointInZone(x: number, y: number, vertices: number[][]): boolean {
+  if (!vertices || vertices.length < 3) return false;
+  
+  let inside = false;
+  for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+    const xi = vertices[i][0];
+    const yi = vertices[i][1];
+    const xj = vertices[j][0];
+    const yj = vertices[j][1];
+    
+    const intersect = ((yi > y) != (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+async function loadCameraInfo(cameraId: number): Promise<{ zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> {
   if (cameraInfoCache.has(cameraId)) {
     return cameraInfoCache.get(cameraId);
   }
@@ -52,14 +69,15 @@ async function loadCameraInfo(cameraId: number): Promise<{ minX: number; maxX: n
     if (vertices && vertices.length >= 4) {
       const xs = vertices.map(p => p[0]);
       const ys = vertices.map(p => p[1]);
-      const zone = {
+      const zoneBounds = {
         minX: Math.min(...xs),
         maxX: Math.max(...xs),
         minY: Math.min(...ys),
         maxY: Math.max(...ys)
       };
-      cameraInfoCache.set(cameraId, zone);
-      return zone;
+      const cameraInfo = { zoneBounds, vertices };
+      cameraInfoCache.set(cameraId, cameraInfo);
+      return cameraInfo;
     }
   } catch (error) {
     console.error(`Ошибка загрузки камеры ${cameraId}:`, error);
@@ -124,18 +142,22 @@ async function processDetection(data: any) {
     return;
   }
   
+  const { zoneBounds, vertices } = cameraInfo;
   const newDetections: DetectionPoint[] = [];
   
   points.forEach((point: number[]) => {
     const relX = point[0];
     const relY = point[1];
-    const absolute = scaleToZone(relX, relY, cameraInfo);
-    newDetections.push({
-      x: absolute.x,
-      y: absolute.y,
-      cameraId: cameraId,
-      timestamp: timestamp
-    });
+    const absolute = scaleToZone(relX, relY, zoneBounds);
+    
+    if (isPointInZone(absolute.x, absolute.y, vertices)) {
+      newDetections.push({
+        x: absolute.x,
+        y: absolute.y,
+        cameraId: cameraId,
+        timestamp: timestamp
+      });
+    }
   });
   
   globalDetections = newDetections;
@@ -226,7 +248,7 @@ function connectWebSocket() {
           addNotification({
             info: data.message.info,
             camera_id: data.message.camera_id,
-            zone_id: data.message.zone_id,
+            area_id: data.message.area_id,
             timestamp: data.message.timestamp
           });
         }

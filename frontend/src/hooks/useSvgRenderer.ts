@@ -32,7 +32,7 @@ export const useSvgRenderer = (
   editingZone: Zone | null,
   getDetectionsByFloor: (floorId: number) => DetectionPoint[],
   currentFloorId: number,
-  blinkingZoneId: number | null = null,
+  blinkingAreaId: number | null = null,
   isAdmin: boolean = true
 ) => {
   
@@ -40,7 +40,6 @@ export const useSvgRenderer = (
     zones.find(zone => zone.cameras.some(cam => cam.id === cameraId)), [zones]);
   
   const getZoneStyle = (camera: Camera, isSelected: boolean, isInZone: boolean, cameraZone: Zone | null) => {
-    // Если зона отключена вручную - тёмно-зелёный цвет
     if (cameraZone?.disabled) {
       return { fill: 'rgba(34, 139, 34, 0.5)', stroke: '#228B22', width: '3' };
     }
@@ -54,7 +53,6 @@ export const useSvgRenderer = (
       if (cameraZone?.disabled) {
         return { fill: 'rgba(34, 139, 34, 0.4)', stroke: '#228B22', width: '3' };
       }
-      // Красная зона - ярко-красный, Зелёная зона - ярко-зелёный
       return { 
         fill: cameraZone?.type === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)', 
         stroke: cameraZone?.type === 'red' ? '#EF4444' : '#22C55E', 
@@ -126,7 +124,6 @@ export const useSvgRenderer = (
   };
   
   const renderZoneBackground = (zone: Zone): string => {
-    // Если зона отключена вручную - тёмно-зелёный цвет
     if (zone.disabled) {
       const color = 'rgba(34, 139, 34, 0.5)';
       const strokeColor = '#228B22';
@@ -140,7 +137,7 @@ export const useSvgRenderer = (
       return result;
     }
     
-    const isBlinking = blinkingZoneId === zone.id;
+    const isBlinking = blinkingAreaId === zone.id;
     
     const color = zone.type === 'red' 
       ? (isBlinking ? 'rgba(255, 0, 0, 0.7)' : 'rgba(239, 68, 68, 0.35)')
@@ -178,9 +175,8 @@ export const useSvgRenderer = (
     if (!isInViewBox) return '';
     
     return `<g transform="translate(${detection.x - 8}, ${detection.y - 8})">
-      <circle cx="8" cy="8" r="8" fill="#000000" stroke="#FFFFFF" stroke-width="2" />
+      <circle cx="8" cy="8" r="8" fill="#FF4444" stroke="#FFFFFF" stroke-width="2" />
       <circle cx="8" cy="8" r="3" fill="#FFFFFF" />
-      <animate attributeName="opacity" values="1;0.3;1" dur="1s" repeatCount="indefinite" />
     </g>`;
   };
   
