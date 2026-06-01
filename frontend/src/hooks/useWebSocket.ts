@@ -26,20 +26,20 @@ interface Camera {
 let ws: WebSocket | null = null;
 let detectionSubscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let notificationSubscribers: ((notifications: Notification[]) => void)[] = [];
-let globalDetections: DetectionPoint[] = [];
 let activeNotifications: Notification[] = [];
 let cameraInfoCache: Map<number, { zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> = new Map();
 let lastRenderTime = 0;
-const RENDER_INTERVAL = 150; // Увеличено до 150 мс для более плавного рендеринга
+const RENDER_INTERVAL = 100;
 
 let currentFloorCameraIds: Set<number> = new Set();
 let isConnecting = false;
 let connectionAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let isInitialized = false;
-let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
-let lastDetectionTime = 0;
+
+// Хранилище текущих детекций по всем камерам
+let allDetections: Map<number, DetectionPoint[]> = new Map();
 
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
 
@@ -101,31 +101,19 @@ function scaleToZone(
   return { x, y };
 }
 
-function scheduleRender() {
-  const now = Date.now();
-  // Если прошло больше RENDER_INTERVAL с последнего рендера, рендерим сразу
-  if (now - lastRenderTime >= RENDER_INTERVAL) {
-    if (renderTimeout) {
-      clearTimeout(renderTimeout);
-      renderTimeout = null;
-    }
-    performRender();
-  } else if (!renderTimeout) {
-    // Иначе откладываем рендер
-    const delay = RENDER_INTERVAL - (now - lastRenderTime);
-    renderTimeout = setTimeout(() => {
-      renderTimeout = null;
-      performRender();
-    }, delay);
+function getAllDetectionsAsArray(): DetectionPoint[] {
+  const result: DetectionPoint[] = [];
+  for (const detections of allDetections.values()) {
+    result.push(...detections);
   }
+  return result;
 }
 
-function performRender() {
-  lastRenderTime = Date.now();
-  if (pendingDetections) {
-    globalDetections = pendingDetections;
-    pendingDetections = null;
-    const detectionsCopy = [...globalDetections];
+function notifyDetectionSubscribers() {
+  const now = Date.now();
+  if (now - lastRenderTime >= RENDER_INTERVAL) {
+    lastRenderTime = now;
+    const detectionsCopy = getAllDetectionsAsArray();
     detectionSubscribers.forEach(cb => {
       try {
         cb(detectionsCopy);
@@ -133,12 +121,20 @@ function performRender() {
         console.error('Ошибка в подписчике детекций:', err);
       }
     });
+  } else if (!renderTimeout) {
+    renderTimeout = setTimeout(() => {
+      renderTimeout = null;
+      lastRenderTime = Date.now();
+      const detectionsCopy = getAllDetectionsAsArray();
+      detectionSubscribers.forEach(cb => {
+        try {
+          cb(detectionsCopy);
+        } catch (err) {
+          console.error('Ошибка в подписчике детекций:', err);
+        }
+      });
+    }, RENDER_INTERVAL - (now - lastRenderTime));
   }
-}
-
-function notifyDetectionSubscribers(newDetections: DetectionPoint[]) {
-  pendingDetections = newDetections;
-  scheduleRender();
 }
 
 function notifyNotificationSubscribers() {
@@ -171,7 +167,7 @@ async function processDetection(data: any) {
   }
   
   const { zoneBounds, vertices } = cameraInfo;
-  const newDetections: DetectionPoint[] = [];
+  const newDetectionsForCamera: DetectionPoint[] = [];
   
   points.forEach((point: number[]) => {
     const relX = point[0];
@@ -179,7 +175,7 @@ async function processDetection(data: any) {
     const absolute = scaleToZone(relX, relY, zoneBounds);
     
     if (isPointInZone(absolute.x, absolute.y, vertices)) {
-      newDetections.push({
+      newDetectionsForCamera.push({
         x: absolute.x,
         y: absolute.y,
         cameraId: cameraId,
@@ -188,7 +184,14 @@ async function processDetection(data: any) {
     }
   });
   
-  notifyDetectionSubscribers(newDetections);
+  // Обновляем точки только для этой камеры, остальные камеры не трогаем
+  if (newDetectionsForCamera.length > 0) {
+    allDetections.set(cameraId, newDetectionsForCamera);
+  } else {
+    allDetections.delete(cameraId);
+  }
+  
+  notifyDetectionSubscribers();
 }
 
 function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
@@ -314,8 +317,7 @@ export function useWebSocket() {
   const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
-    globalDetections = [];
-    pendingDetections = null;
+    allDetections.clear();
     setDetections([]);
   };
 
@@ -324,8 +326,7 @@ export function useWebSocket() {
   };
 
   const clearDetections = () => {
-    globalDetections = [];
-    pendingDetections = null;
+    allDetections.clear();
     setDetections([]);
   };
 
