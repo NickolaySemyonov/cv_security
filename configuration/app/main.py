@@ -19,11 +19,8 @@ from database import SessionLocal
 from models import Area, Schedule
 from crud.logs import action_logger
 from dotenv import load_dotenv
-from pathlib import Path
 
-# Загружаем .env из корня проекта
-env_path = Path(__file__).parent.parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
 app = FastAPI(title="CV Security API")
 
@@ -45,7 +42,10 @@ app.include_router(logs_router)
 app.include_router(schedules_router)
 app.include_router(users_router)
 
-VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY", "./storage/videos")
+VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY")
+if not VIDEOS_DIRECTORY:
+    raise ValueError("VIDEOS_DIRECTORY не задан в .env файле")
+
 os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
 app.mount("/static/videos", StaticFiles(directory=VIDEOS_DIRECTORY), name="videos")
 

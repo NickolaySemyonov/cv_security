@@ -2,18 +2,17 @@ import os
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from typing import List
-from pathlib import Path
 from dotenv import load_dotenv
 from security import get_current_user
 from models import User
 
-# Загружаем .env из корня проекта
-env_path = Path(__file__).parent.parent.parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
 router = APIRouter(prefix="/videos", tags=["videos"])
 
-VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY", "./storage/videos")
+VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY")
+if not VIDEOS_DIRECTORY:
+    raise ValueError("VIDEOS_DIRECTORY не задан в .env файле")
 
 @router.get("/list")
 async def get_videos_list(

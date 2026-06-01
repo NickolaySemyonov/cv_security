@@ -3,19 +3,22 @@ import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
-from pathlib import Path
 from dotenv import load_dotenv
 from database import get_db
 from crud.user import user
 from models import User
 
-# Загружаем .env из корня проекта
-env_path = Path(__file__).parent.parent.parent / '.env'
-load_dotenv(dotenv_path=env_path)
+load_dotenv()
 
 security = HTTPBearer()
-SECRET_KEY = os.getenv("SECRET_KEY", "gagara_super_secret_key_2026_for_cv_security_system_very_long_key_12345")
-ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY не задан в .env файле")
+
+ALGORITHM = os.getenv("JWT_ALGORITHM")
+if not ALGORITHM:
+    raise ValueError("JWT_ALGORITHM не задан в .env файле")
 
 def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security),

@@ -36,6 +36,7 @@ let currentFloorCameraIds: Set<number> = new Set();
 let isConnecting = false;
 let connectionAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
+let isInitialized = false;
 
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
 
@@ -83,12 +84,26 @@ function notifyDetectionSubscribers() {
   const now = Date.now();
   if (now - lastRenderTime >= RENDER_INTERVAL) {
     lastRenderTime = now;
-    detectionSubscribers.forEach(cb => cb([...globalDetections]));
+    const detectionsCopy = [...globalDetections];
+    detectionSubscribers.forEach(cb => {
+      try {
+        cb(detectionsCopy);
+      } catch (err) {
+        console.error('Ошибка в подписчике детекций:', err);
+      }
+    });
   }
 }
 
 function notifyNotificationSubscribers() {
-  notificationSubscribers.forEach(cb => cb([...activeNotifications]));
+  const notificationsCopy = [...activeNotifications];
+  notificationSubscribers.forEach(cb => {
+    try {
+      cb(notificationsCopy);
+    } catch (err) {
+      console.error('Ошибка в подписчике уведомлений:', err);
+    }
+  });
 }
 
 async function processDetection(data: any) {
@@ -196,7 +211,7 @@ function connectWebSocket() {
     ws = new WebSocket(WS_URL);
     
     ws.onopen = () => {
-      console.log('✅ WebSocket подключен');
+      console.log(`✅ WebSocket подключен к ${WS_URL}`);
       isConnecting = false;
       connectionAttempts = 0;
     };
@@ -258,15 +273,14 @@ export function useWebSocket() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isConnected, setIsConnected] = useState(false);
   const isMounted = useRef(true);
-  const detectionSubscriptionRef = useRef<((detections: DetectionPoint[]) => void) | null>(null);
-  const notificationSubscriptionRef = useRef<((notifications: Notification[]) => void) | null>(null);
+  const componentId = useRef(Math.random().toString(36).substring(7));
 
   const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
     globalDetections = [];
     setDetections([]);
-    console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
+    console.log(`[${componentId.current}] 📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
   };
 
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
@@ -276,7 +290,7 @@ export function useWebSocket() {
   const clearDetections = () => {
     globalDetections = [];
     setDetections([]);
-    console.log('🧹 Детекции очищены');
+    console.log(`[${componentId.current}] 🧹 Детекции очищены`);
   };
 
   const markAsRead = (notificationId: string) => {
@@ -292,7 +306,7 @@ export function useWebSocket() {
   };
 
   useEffect(() => {
-    isMounted.current = true;
+    console.log(`[${componentId.current}] Компонент смонтирован, добавляем подписчиков`);
     
     const detectionSub = (newDetections: DetectionPoint[]) => {
       if (isMounted.current) {
@@ -307,15 +321,14 @@ export function useWebSocket() {
       }
     };
     
-    detectionSubscriptionRef.current = detectionSub;
-    notificationSubscriptionRef.current = notificationSub;
     detectionSubscribers.push(detectionSub);
     notificationSubscribers.push(notificationSub);
     
     const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-    console.log(`Всего подписчиков: ${totalSubscribers}`);
+    console.log(`[${componentId.current}] Всего подписчиков: детекций=${detectionSubscribers.length}, уведомлений=${notificationSubscribers.length}, итого=${totalSubscribers}`);
     
-    if (totalSubscribers === 1) {
+    if (!isInitialized && totalSubscribers > 0) {
+      isInitialized = true;
       console.log('Первый подписчик, создаём WebSocket соединение');
       connectWebSocket();
     }
@@ -328,28 +341,24 @@ export function useWebSocket() {
     }, 1000);
     
     return () => {
+      console.log(`[${componentId.current}] Компонент размонтирован, удаляем подписчиков`);
       isMounted.current = false;
       
-      if (detectionSubscriptionRef.current) {
-        const index = detectionSubscribers.indexOf(detectionSubscriptionRef.current);
-        if (index !== -1) detectionSubscribers.splice(index, 1);
-        detectionSubscriptionRef.current = null;
-      }
+      const detectionIndex = detectionSubscribers.indexOf(detectionSub);
+      if (detectionIndex !== -1) detectionSubscribers.splice(detectionIndex, 1);
       
-      if (notificationSubscriptionRef.current) {
-        const index = notificationSubscribers.indexOf(notificationSubscriptionRef.current);
-        if (index !== -1) notificationSubscribers.splice(index, 1);
-        notificationSubscriptionRef.current = null;
-      }
+      const notificationIndex = notificationSubscribers.indexOf(notificationSub);
+      if (notificationIndex !== -1) notificationSubscribers.splice(notificationIndex, 1);
       
       clearInterval(interval);
       
       const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-      console.log(`Подписчиков после удаления: ${totalSubscribers}`);
+      console.log(`Подписчиков после удаления: детекций=${detectionSubscribers.length}, уведомлений=${notificationSubscribers.length}, итого=${totalSubscribers}`);
       
       if (totalSubscribers === 0) {
         console.log('Нет подписчиков, закрываем WebSocket');
         closeWebSocket();
+        isInitialized = false;
       }
     };
   }, []);
