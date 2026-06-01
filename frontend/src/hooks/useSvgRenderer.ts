@@ -39,7 +39,7 @@ export const useSvgRenderer = (
   const getZoneOfCamera = useCallback((cameraId: number): Zone | undefined => 
     zones.find(zone => zone.cameras.some(cam => cam.id === cameraId)), [zones]);
   
-  const getZoneStyle = (camera: Camera, isSelected: boolean, isInZone: boolean, cameraZone: Zone | null) => {
+  const getZoneStyle = useCallback((camera: Camera, isSelected: boolean, isInZone: boolean, cameraZone: Zone | null) => {
     if (cameraZone?.disabled) {
       return { fill: 'rgba(34, 139, 34, 0.5)', stroke: '#228B22', width: '3' };
     }
@@ -60,17 +60,17 @@ export const useSvgRenderer = (
       };
     }
     return { fill: 'rgba(100,150,255,0.15)', stroke: '#6495ED', width: '2' };
-  };
+  }, [isSelectingZone, editingZone]);
   
-  const renderCameraZone = (camera: Camera, style: { fill: string; stroke: string; width: string }, isSelectable: boolean): string => {
+  const renderCameraZone = useCallback((camera: Camera, style: { fill: string; stroke: string; width: string }, isSelectable: boolean): string => {
     if (!camera.visible_zone?.vertices?.length) return '';
     const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
     const attrs = `points="${points}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${style.width}" stroke-dasharray="4,4"`;
     const selectable = isSelectable ? ` class="selectable-zone" data-camera-id="${camera.id}" style="cursor:pointer"` : '';
     return `<polygon ${attrs}${selectable} />`;
-  };
+  }, []);
   
-  const renderCameraIcon = (camera: Camera, isSelectable: boolean, isSelected: boolean): string => {
+  const renderCameraIcon = useCallback((camera: Camera, isSelectable: boolean, isSelected: boolean): string => {
     if (!camera.position) return '';
     const x = camera.position.x;
     const y = camera.position.y;
@@ -104,7 +104,7 @@ export const useSvgRenderer = (
       `;
     }
     
-    const cameraIcon = `
+    return `
       ${hoverEffect}
       <g transform="translate(${x - 16}, ${y - 16})" 
          class="camera-icon-${camera.id} ${additionalClass}" 
@@ -119,11 +119,9 @@ export const useSvgRenderer = (
         <circle cx="26" cy="12" r="1.5" fill="#ff0000" opacity="0.8" />
       </g>
     `;
-    
-    return cameraIcon;
-  };
+  }, [isSelectingZone, isAdmin]);
   
-  const renderZoneBackground = (zone: Zone): string => {
+  const renderZoneBackground = useCallback((zone: Zone): string => {
     if (zone.disabled) {
       const color = 'rgba(34, 139, 34, 0.5)';
       const strokeColor = '#228B22';
@@ -139,14 +137,17 @@ export const useSvgRenderer = (
     
     const isBlinking = blinkingAreaId === zone.id;
     
+    // Для мигающей зоны используем ярко-красный цвет с анимацией
     const color = zone.type === 'red' 
-      ? (isBlinking ? 'rgba(255, 0, 0, 0.7)' : 'rgba(239, 68, 68, 0.35)')
-      : (isBlinking ? 'rgba(255, 215, 0, 0.5)' : 'rgba(34, 197, 94, 0.3)');
+      ? (isBlinking ? 'rgba(255, 0, 0, 0.8)' : 'rgba(239, 68, 68, 0.35)')
+      : (isBlinking ? 'rgba(255, 100, 0, 0.6)' : 'rgba(34, 197, 94, 0.3)');
     const strokeColor = zone.type === 'red' 
       ? (isBlinking ? '#FF0000' : '#EF4444')
-      : (isBlinking ? '#FFD700' : '#22C55E');
+      : (isBlinking ? '#FF6600' : '#22C55E');
     const strokeWidth = isBlinking ? '4' : '3';
-    const animation = isBlinking ? 'animation: blink 0.5s infinite;' : '';
+    
+    // Анимация мигания
+    const animation = isBlinking ? 'animation: blink 0.8s ease-in-out infinite;' : '';
     
     let result = '';
     if (isBlinking) {
@@ -154,7 +155,7 @@ export const useSvgRenderer = (
         <style>
           @keyframes blink {
             0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
+            50% { opacity: 0.4; }
           }
         </style>
       `;
@@ -167,9 +168,9 @@ export const useSvgRenderer = (
       }
     });
     return result;
-  };
+  }, [blinkingAreaId]);
   
-  const renderDetectionPoint = (detection: DetectionPoint, viewBox: { x: number; y: number; width: number; height: number }): string => {
+  const renderDetectionPoint = useCallback((detection: DetectionPoint, viewBox: { x: number; y: number; width: number; height: number }): string => {
     const isInViewBox = detection.x >= viewBox.x && detection.x <= viewBox.x + viewBox.width &&
                         detection.y >= viewBox.y && detection.y <= viewBox.y + viewBox.height;
     if (!isInViewBox) return '';
@@ -178,9 +179,9 @@ export const useSvgRenderer = (
       <circle cx="8" cy="8" r="8" fill="#FF4444" stroke="#FFFFFF" stroke-width="2" />
       <circle cx="8" cy="8" r="3" fill="#FFFFFF" />
     </g>`;
-  };
+  }, []);
   
-  const getSvgWithAllElements = (svgContent: string): string => {
+  const getSvgWithAllElements = useCallback((svgContent: string): string => {
     if (!svgContent) return '';
     
     let modifiedSvg = normalizeSvg(svgContent);
@@ -223,7 +224,7 @@ export const useSvgRenderer = (
     });
     
     return modifiedSvg;
-  };
+  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoint]);
   
   return { getSvgWithAllElements };
 };

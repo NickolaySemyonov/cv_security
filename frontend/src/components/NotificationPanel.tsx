@@ -10,8 +10,10 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
   const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useWebSocket();
 
   useEffect(() => {
+    // При появлении нового уведомления запускаем мигание
     const unreadNotifications = notifications.filter(n => !n.isRead);
     if (unreadNotifications.length > 0 && onAreaBlink) {
+      // Берем самое свежее уведомление (первое в списке)
       const latestArea = unreadNotifications[0].area_id;
       onAreaBlink(latestArea);
     } else if (unreadNotifications.length === 0) {
@@ -102,7 +104,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-red-500 text-lg animate-pulse">🔴</span>
+                            <span className="text-red-500 text-lg">🔴</span>
                             <span className="font-semibold text-gray-300 text-sm">
                               Зона #{notification.area_id}
                             </span>

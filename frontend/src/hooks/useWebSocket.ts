@@ -30,13 +30,15 @@ let globalDetections: DetectionPoint[] = [];
 let activeNotifications: Notification[] = [];
 let cameraInfoCache: Map<number, { zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> = new Map();
 let lastRenderTime = 0;
-const RENDER_INTERVAL = 50;
+const RENDER_INTERVAL = 100;
 
 let currentFloorCameraIds: Set<number> = new Set();
 let isConnecting = false;
 let connectionAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let isInitialized = false;
+let pendingDetections: DetectionPoint[] | null = null;
+let renderTimeout: NodeJS.Timeout | null = null;
 
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
 
@@ -98,19 +100,28 @@ function scaleToZone(
   return { x, y };
 }
 
-function notifyDetectionSubscribers() {
-  const now = Date.now();
-  if (now - lastRenderTime >= RENDER_INTERVAL) {
-    lastRenderTime = now;
-    const detectionsCopy = [...globalDetections];
-    detectionSubscribers.forEach(cb => {
-      try {
-        cb(detectionsCopy);
-      } catch (err) {
-        console.error('Ошибка в подписчике детекций:', err);
-      }
-    });
-  }
+function scheduleRender() {
+  if (renderTimeout) return;
+  
+  renderTimeout = setTimeout(() => {
+    renderTimeout = null;
+    if (pendingDetections) {
+      globalDetections = pendingDetections;
+      pendingDetections = null;
+      detectionSubscribers.forEach(cb => {
+        try {
+          cb([...globalDetections]);
+        } catch (err) {
+          console.error('Ошибка в подписчике детекций:', err);
+        }
+      });
+    }
+  }, RENDER_INTERVAL);
+}
+
+function notifyDetectionSubscribers(newDetections: DetectionPoint[]) {
+  pendingDetections = newDetections;
+  scheduleRender();
 }
 
 function notifyNotificationSubscribers() {
@@ -160,8 +171,7 @@ async function processDetection(data: any) {
     }
   });
   
-  globalDetections = newDetections;
-  notifyDetectionSubscribers();
+  notifyDetectionSubscribers(newDetections);
 }
 
 function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
@@ -173,19 +183,11 @@ function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
   
   activeNotifications = [newNotification, ...activeNotifications];
   
-  if (activeNotifications.length > 50) {
-    activeNotifications = activeNotifications.slice(0, 50);
+  if (activeNotifications.length > 100) {
+    activeNotifications = activeNotifications.slice(0, 100);
   }
   
   notifyNotificationSubscribers();
-  
-  setTimeout(() => {
-    const stillExists = activeNotifications.find(n => n.id === newNotification.id);
-    if (stillExists && !stillExists.isRead) {
-      activeNotifications = activeNotifications.filter(n => n.id !== newNotification.id);
-      notifyNotificationSubscribers();
-    }
-  }, 10000);
 }
 
 function markNotificationAsRead(notificationId: string) {
@@ -194,11 +196,6 @@ function markNotificationAsRead(notificationId: string) {
     notification.isRead = true;
     notifyNotificationSubscribers();
   }
-  
-  setTimeout(() => {
-    activeNotifications = activeNotifications.filter(n => n.id !== notificationId);
-    notifyNotificationSubscribers();
-  }, 500);
 }
 
 function clearAllNotifications() {
@@ -287,6 +284,10 @@ function closeWebSocket() {
   }
   isConnecting = false;
   connectionAttempts = 0;
+  if (renderTimeout) {
+    clearTimeout(renderTimeout);
+    renderTimeout = null;
+  }
 }
 
 export function useWebSocket() {
@@ -301,6 +302,7 @@ export function useWebSocket() {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
     globalDetections = [];
+    pendingDetections = null;
     setDetections([]);
     console.log(`[${componentId.current}] 📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
   };
@@ -311,6 +313,7 @@ export function useWebSocket() {
 
   const clearDetections = () => {
     globalDetections = [];
+    pendingDetections = null;
     setDetections([]);
     console.log(`[${componentId.current}] 🧹 Детекции очищены`);
   };
