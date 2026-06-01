@@ -30,7 +30,7 @@ let globalDetections: DetectionPoint[] = [];
 let activeNotifications: Notification[] = [];
 let cameraInfoCache: Map<number, { zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> = new Map();
 let lastRenderTime = 0;
-const RENDER_INTERVAL = 100;
+const RENDER_INTERVAL = 150; // Увеличено до 150 мс для более плавного рендеринга
 
 let currentFloorCameraIds: Set<number> = new Set();
 let isConnecting = false;
@@ -39,6 +39,7 @@ const MAX_RECONNECT_ATTEMPTS = 5;
 let isInitialized = false;
 let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
+let lastDetectionTime = 0;
 
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
 
@@ -101,22 +102,38 @@ function scaleToZone(
 }
 
 function scheduleRender() {
-  if (renderTimeout) return;
-  
-  renderTimeout = setTimeout(() => {
-    renderTimeout = null;
-    if (pendingDetections) {
-      globalDetections = pendingDetections;
-      pendingDetections = null;
-      detectionSubscribers.forEach(cb => {
-        try {
-          cb([...globalDetections]);
-        } catch (err) {
-          console.error('Ошибка в подписчике детекций:', err);
-        }
-      });
+  const now = Date.now();
+  // Если прошло больше RENDER_INTERVAL с последнего рендера, рендерим сразу
+  if (now - lastRenderTime >= RENDER_INTERVAL) {
+    if (renderTimeout) {
+      clearTimeout(renderTimeout);
+      renderTimeout = null;
     }
-  }, RENDER_INTERVAL);
+    performRender();
+  } else if (!renderTimeout) {
+    // Иначе откладываем рендер
+    const delay = RENDER_INTERVAL - (now - lastRenderTime);
+    renderTimeout = setTimeout(() => {
+      renderTimeout = null;
+      performRender();
+    }, delay);
+  }
+}
+
+function performRender() {
+  lastRenderTime = Date.now();
+  if (pendingDetections) {
+    globalDetections = pendingDetections;
+    pendingDetections = null;
+    const detectionsCopy = [...globalDetections];
+    detectionSubscribers.forEach(cb => {
+      try {
+        cb(detectionsCopy);
+      } catch (err) {
+        console.error('Ошибка в подписчике детекций:', err);
+      }
+    });
+  }
 }
 
 function notifyDetectionSubscribers(newDetections: DetectionPoint[]) {
@@ -210,17 +227,14 @@ function removeNotification(notificationId: string) {
 
 function connectWebSocket() {
   if (isConnecting) {
-    console.log('WebSocket уже подключается, пропускаем');
     return;
   }
   
   if (ws && ws.readyState === WebSocket.OPEN) {
-    console.log('WebSocket уже открыт, пропускаем');
     return;
   }
   
   if (ws && ws.readyState === WebSocket.CONNECTING) {
-    console.log('WebSocket уже подключается, пропускаем');
     return;
   }
   
@@ -262,7 +276,6 @@ function connectWebSocket() {
       const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
       if (totalSubscribers > 0 && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
         connectionAttempts++;
-        console.log(`Попытка переподключения ${connectionAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
         setTimeout(connectWebSocket, 3000);
       }
     };
@@ -304,7 +317,6 @@ export function useWebSocket() {
     globalDetections = [];
     pendingDetections = null;
     setDetections([]);
-    console.log(`[${componentId.current}] 📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
   };
 
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
@@ -315,7 +327,6 @@ export function useWebSocket() {
     globalDetections = [];
     pendingDetections = null;
     setDetections([]);
-    console.log(`[${componentId.current}] 🧹 Детекции очищены`);
   };
 
   const markAsRead = (notificationId: string) => {
@@ -331,7 +342,7 @@ export function useWebSocket() {
   };
 
   useEffect(() => {
-    console.log(`[${componentId.current}] Компонент смонтирован, добавляем подписчиков`);
+    isMounted.current = true;
     
     const detectionSub = (newDetections: DetectionPoint[]) => {
       if (isMounted.current) {
@@ -350,11 +361,9 @@ export function useWebSocket() {
     notificationSubscribers.push(notificationSub);
     
     const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-    console.log(`[${componentId.current}] Всего подписчиков: детекций=${detectionSubscribers.length}, уведомлений=${notificationSubscribers.length}, итого=${totalSubscribers}`);
     
     if (!isInitialized && totalSubscribers > 0) {
       isInitialized = true;
-      console.log('Первый подписчик, создаём WebSocket соединение');
       connectWebSocket();
     }
     
@@ -366,7 +375,6 @@ export function useWebSocket() {
     }, 1000);
     
     return () => {
-      console.log(`[${componentId.current}] Компонент размонтирован, удаляем подписчиков`);
       isMounted.current = false;
       
       const detectionIndex = detectionSubscribers.indexOf(detectionSub);
@@ -378,10 +386,8 @@ export function useWebSocket() {
       clearInterval(interval);
       
       const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-      console.log(`Подписчиков после удаления: детекций=${detectionSubscribers.length}, уведомлений=${notificationSubscribers.length}, итого=${totalSubscribers}`);
       
       if (totalSubscribers === 0) {
-        console.log('Нет подписчиков, закрываем WebSocket');
         closeWebSocket();
         isInitialized = false;
       }

@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useRef } from 'react';
 import { normalizeSvg, getViewBox } from '../utils/svgHelpers';
 
 interface Camera {
@@ -137,7 +137,6 @@ export const useSvgRenderer = (
     
     const isBlinking = blinkingAreaId === zone.id;
     
-    // Для мигающей зоны используем ярко-красный цвет с анимацией
     const color = zone.type === 'red' 
       ? (isBlinking ? 'rgba(255, 0, 0, 0.8)' : 'rgba(239, 68, 68, 0.35)')
       : (isBlinking ? 'rgba(255, 100, 0, 0.6)' : 'rgba(34, 197, 94, 0.3)');
@@ -145,8 +144,6 @@ export const useSvgRenderer = (
       ? (isBlinking ? '#FF0000' : '#EF4444')
       : (isBlinking ? '#FF6600' : '#22C55E');
     const strokeWidth = isBlinking ? '4' : '3';
-    
-    // Анимация мигания
     const animation = isBlinking ? 'animation: blink 0.8s ease-in-out infinite;' : '';
     
     let result = '';
@@ -216,12 +213,14 @@ export const useSvgRenderer = (
     });
     
     const detections = getDetectionsByFloor(currentFloorId);
-    detections.forEach(detection => {
-      const pointHtml = renderDetectionPoint(detection, viewBox);
-      if (pointHtml) {
-        modifiedSvg = modifiedSvg.replace('</svg>', pointHtml + '</svg>');
-      }
-    });
+    if (detections.length > 0) {
+      detections.forEach(detection => {
+        const pointHtml = renderDetectionPoint(detection, viewBox);
+        if (pointHtml) {
+          modifiedSvg = modifiedSvg.replace('</svg>', pointHtml + '</svg>');
+        }
+      });
+    }
     
     return modifiedSvg;
   }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoint]);
