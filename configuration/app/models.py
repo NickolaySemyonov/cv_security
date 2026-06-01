@@ -36,7 +36,7 @@ class User(Base):
 class Action(Base):
     __tablename__ = 'action'
     __table_args__ = (
-        ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='CASCADE', name='user_fk'),
+        ForeignKeyConstraint(['user_id'], ['user.id'], ondelete='SET NULL', name='user_fk'),
         PrimaryKeyConstraint('id', name='action_pkey')
     )
 
@@ -44,9 +44,9 @@ class Action(Base):
     time: Mapped[datetime.datetime] = mapped_column(DateTime(True), nullable=False, server_default=text('now()'))
     title: Mapped[str] = mapped_column(Text, nullable=False)
     text_: Mapped[str] = mapped_column('text', Text, nullable=False)
-    user_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    user_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    user: Mapped['User'] = relationship('User', back_populates='action')
+    user: Mapped['User | None'] = relationship('User', back_populates='action')
 
 class Floor(Base):
     __tablename__ = 'floor'

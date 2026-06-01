@@ -3,10 +3,9 @@ from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
 from models import Floor, User, Camera, Area
-from schemas import FloorCreate, FloorResponse, FloorUpdate, FloorDeleteResponse
+from schemas import FloorCreate, FloorResponse, FloorUpdate
 from security import get_current_user
 from crud.logs import action_logger
-from crud.camera import camera_crud
 
 router = APIRouter(prefix="/floors", tags=["floors"])
 
@@ -35,12 +34,6 @@ async def create_floor(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    if not floor_data.map or len(floor_data.map.strip()) == 0:
-        raise HTTPException(400, "Необходимо загрузить карту этажа (SVG файл)")
-    
-    if not floor_data.map.startswith('<svg'):
-        raise HTTPException(400, "Неверный формат карты. Ожидается SVG файл")
-    
     existing = db.query(Floor).filter(
         Floor.place == floor_data.place,
         Floor.number == floor_data.number
@@ -49,11 +42,7 @@ async def create_floor(
     if existing:
         raise HTTPException(409, f"Этаж {floor_data.number} у объекта '{floor_data.place}' уже существует")
     
-    floor = Floor(
-        number=floor_data.number,
-        place=floor_data.place,
-        map=floor_data.map
-    )
+    floor = Floor(**floor_data.dict())
     db.add(floor)
     db.commit()
     db.refresh(floor)
@@ -62,7 +51,7 @@ async def create_floor(
         db,
         user_id=current_user.id,
         title="СОЗДАНИЕ ЭТАЖА",
-        text=f"Создан этаж {floor.number} у объекта '{floor.place}'"
+        text=f"Создан этаж {floor.number} у объекта '{floor.place}', ID: {floor.id}"
     )
     
     return floor
@@ -84,17 +73,9 @@ async def update_floor(
     
     db.commit()
     db.refresh(floor)
-    
-    action_logger.log(
-        db,
-        user_id=current_user.id,
-        title="ОБНОВЛЕНИЕ ЭТАЖА",
-        text=f"Обновлен этаж {floor.number} у объекта '{floor.place}'"
-    )
-    
     return floor
 
-@router.delete("/{floor_id}", response_model=FloorDeleteResponse)
+@router.delete("/{floor_id}")
 async def delete_floor(
     floor_id: int,
     db: Session = Depends(get_db),
@@ -104,10 +85,13 @@ async def delete_floor(
     if not floor:
         raise HTTPException(404, "Этаж не найден")
     
-    cameras_deleted = camera_crud.delete_by_floor(db, floor_id)
+    # Сначала удаляем камеры
+    cameras = db.query(Camera).filter(Camera.floor_id == floor_id).all()
+    for camera in cameras:
+        db.delete(camera)
     
+    # Удаляем зоны
     areas = db.query(Area).filter(Area.floor_id == floor_id).all()
-    areas_deleted = len(areas)
     for area in areas:
         db.delete(area)
     
@@ -120,11 +104,7 @@ async def delete_floor(
         db,
         user_id=current_user.id,
         title="УДАЛЕНИЕ ЭТАЖА",
-        text=f"Удален {floor_info}, удалено камер: {cameras_deleted}, удалено зон: {areas_deleted}"
+        text=f"Удален {floor_info}, удалено камер: {len(cameras)}, удалено зон: {len(areas)}"
     )
     
-    return FloorDeleteResponse(
-        message="Этаж успешно удалён",
-        cameras_deleted=cameras_deleted,
-        areas_deleted=areas_deleted
-    )
+    return {"message": "Этаж успешно удалён", "cameras_deleted": len(cameras), "areas_deleted": len(areas)}

@@ -22,6 +22,9 @@ let lastRenderTime = 0;
 const RENDER_INTERVAL = 50;
 
 let currentFloorCameraIds: Set<number> = new Set();
+let isConnecting = false;
+let connectionAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
 async function loadCameraInfo(cameraId: number): Promise<{ minX: number; maxX: number; minY: number; maxY: number } | null> {
   if (cameraInfoCache.has(cameraId)) {
@@ -72,17 +75,12 @@ function notifySubscribers() {
 }
 
 async function processDetection(data: any) {
-  console.log('📨 Получено сообщение:', data);
-  
-  // Поддержка формата { type: 'detection', message: {...} }
   let detectionData = data;
   if (data.type === 'detection' && data.message) {
     detectionData = data.message;
   }
   
-  // Проверяем наличие нужных полей
   if (detectionData.camera_id === undefined || !detectionData.translated_points) {
-    console.log('⚠️ Неизвестный формат сообщения:', data);
     return;
   }
   
@@ -90,27 +88,21 @@ async function processDetection(data: any) {
   const points = detectionData.translated_points;
   const timestamp = detectionData.timestamp || Date.now() / 1000;
   
-  console.log(`📹 Камера ${cameraId}, точек: ${points.length}`);
-  
   if (!currentFloorCameraIds.has(cameraId)) {
-    console.log(`❌ Камера ${cameraId} не принадлежит текущему этажу`);
     return;
   }
   
   const cameraInfo = await loadCameraInfo(cameraId);
   if (!cameraInfo) {
-    console.log(`❌ Нет информации о зоне камеры ${cameraId}`);
     return;
   }
   
   const newDetections: DetectionPoint[] = [];
   
-  points.forEach((point: number[], index: number) => {
+  points.forEach((point: number[]) => {
     const relX = point[0];
     const relY = point[1];
-    
     const absolute = scaleToZone(relX, relY, cameraInfo);
-    
     newDetections.push({
       x: absolute.x,
       y: absolute.y,
@@ -120,37 +112,67 @@ async function processDetection(data: any) {
   });
   
   globalDetections = newDetections;
-  console.log(`✅ Точки: ${globalDetections.length}`);
   notifySubscribers();
 }
 
 function connectWebSocket() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
+  if (isConnecting) {
+    return;
+  }
   
-  ws = new WebSocket('ws://localhost:8765');
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
   
-  ws.onopen = () => {
-    console.log('✅ WebSocket подключен');
-  };
+  isConnecting = true;
+  const WS_URL = `ws://${window.location.hostname}:8765`;
   
-  ws.onmessage = async (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      await processDetection(data);
-    } catch (error) {
-      console.error('Ошибка обработки:', error);
-    }
-  };
-  
-  ws.onclose = () => {
-    console.log('WebSocket закрыт, переподключение...');
+  try {
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen = () => {
+      console.log('✅ WebSocket детекций подключен');
+      isConnecting = false;
+      connectionAttempts = 0;
+    };
+    
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        await processDetection(data);
+      } catch (error) {
+        console.error('Ошибка обработки:', error);
+      }
+    };
+    
+    ws.onclose = () => {
+      console.log('WebSocket детекций закрыт');
+      ws = null;
+      isConnecting = false;
+      
+      if (subscribers.length > 0 && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+        connectionAttempts++;
+        setTimeout(connectWebSocket, 3000);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket детекций ошибка:', error);
+      isConnecting = false;
+    };
+  } catch (error) {
+    console.error('Ошибка создания WebSocket:', error);
+    isConnecting = false;
+  }
+}
+
+function closeWebSocket() {
+  if (ws) {
+    ws.close();
     ws = null;
-    setTimeout(connectWebSocket, 3000);
-  };
-  
-  ws.onerror = (error) => {
-    console.error('WebSocket ошибка:', error);
-  };
+  }
+  isConnecting = false;
+  connectionAttempts = 0;
 }
 
 export function useCameraDetection() {
@@ -160,11 +182,8 @@ export function useCameraDetection() {
   const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
-    
     globalDetections = [];
     setDetections([]);
-    
-    console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
   };
 
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
@@ -174,7 +193,6 @@ export function useCameraDetection() {
   const clearDetections = () => {
     globalDetections = [];
     setDetections([]);
-    console.log('🧹 Детекции очищены');
   };
 
   useEffect(() => {
@@ -196,6 +214,10 @@ export function useCameraDetection() {
       const index = subscribers.indexOf(subscription);
       if (index !== -1) subscribers.splice(index, 1);
       clearInterval(interval);
+      
+      if (subscribers.length === 0) {
+        closeWebSocket();
+      }
     };
   }, []);
   

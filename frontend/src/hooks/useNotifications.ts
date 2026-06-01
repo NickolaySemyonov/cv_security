@@ -12,8 +12,11 @@ export interface Notification {
 let ws: WebSocket | null = null;
 let notificationSubscribers: ((notifications: Notification[]) => void)[] = [];
 let activeNotifications: Notification[] = [];
+let isConnecting = false;
+let connectionAttempts = 0;
+const MAX_RECONNECT_ATTEMPTS = 5;
 
-const WS_URL = 'ws://localhost:8766';
+const WS_URL = `ws://${window.location.hostname}:8766`;
 
 function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
   const newNotification: Notification = {
@@ -63,39 +66,69 @@ function removeNotification(notificationId: string) {
 }
 
 function connectWebSocket() {
-  if (ws && ws.readyState === WebSocket.OPEN) return;
+  if (isConnecting) {
+    return;
+  }
   
-  ws = new WebSocket(WS_URL);
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
   
-  ws.onopen = () => {
-    console.log('✅ WebSocket уведомлений подключен');
-  };
+  isConnecting = true;
   
-  ws.onmessage = async (event) => {
-    try {
-      const data = JSON.parse(event.data);
-      if (data.type === 'alert' && data.message) {
-        addNotification({
-          info: data.message.info,
-          camera_id: data.message.camera_id,
-          zone_id: data.message.zone_id,
-          timestamp: data.message.timestamp
-        });
+  try {
+    ws = new WebSocket(WS_URL);
+    
+    ws.onopen = () => {
+      console.log('✅ WebSocket уведомлений подключен');
+      isConnecting = false;
+      connectionAttempts = 0;
+    };
+    
+    ws.onmessage = async (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data.type === 'alert' && data.message) {
+          addNotification({
+            info: data.message.info,
+            camera_id: data.message.camera_id,
+            zone_id: data.message.zone_id,
+            timestamp: data.message.timestamp
+          });
+        }
+      } catch (error) {
+        console.error('Ошибка обработки уведомления:', error);
       }
-    } catch (error) {
-      console.error('Ошибка обработки уведомления:', error);
-    }
-  };
-  
-  ws.onclose = () => {
-    console.log('WebSocket уведомлений закрыт, переподключение...');
+    };
+    
+    ws.onclose = () => {
+      console.log('WebSocket уведомлений закрыт');
+      ws = null;
+      isConnecting = false;
+      
+      if (notificationSubscribers.length > 0 && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
+        connectionAttempts++;
+        setTimeout(connectWebSocket, 3000);
+      }
+    };
+    
+    ws.onerror = (error) => {
+      console.error('WebSocket уведомлений ошибка:', error);
+      isConnecting = false;
+    };
+  } catch (error) {
+    console.error('Ошибка создания WebSocket уведомлений:', error);
+    isConnecting = false;
+  }
+}
+
+function closeWebSocket() {
+  if (ws) {
+    ws.close();
     ws = null;
-    setTimeout(connectWebSocket, 3000);
-  };
-  
-  ws.onerror = (error) => {
-    console.error('WebSocket уведомлений ошибка:', error);
-  };
+  }
+  isConnecting = false;
+  connectionAttempts = 0;
 }
 
 export function useNotifications() {
@@ -117,6 +150,10 @@ export function useNotifications() {
     return () => {
       const index = notificationSubscribers.indexOf(subscription);
       if (index !== -1) notificationSubscribers.splice(index, 1);
+      
+      if (notificationSubscribers.length === 0) {
+        closeWebSocket();
+      }
     };
   }, []);
   

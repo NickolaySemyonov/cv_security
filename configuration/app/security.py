@@ -8,7 +8,7 @@ from crud.user import user
 from models import User
 
 security = HTTPBearer()
-SECRET_KEY = os.getenv("SECRET_KEY", "gagara")
+SECRET_KEY = "gagara"
 ALGORITHM = "HS256"
 
 def get_current_user(
@@ -32,12 +32,10 @@ def get_current_user(
     
     return current_user
 
-
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != 'admin':
         raise HTTPException(status_code=403, detail="Доступ запрещён. Требуются права администратора.")
     return current_user
-
 
 def require_operator_or_admin(current_user: User = Depends(get_current_user)):
     if current_user.role not in ['admin', 'operator']:

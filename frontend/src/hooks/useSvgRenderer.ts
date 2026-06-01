@@ -32,15 +32,17 @@ export const useSvgRenderer = (
   editingZone: Zone | null,
   getDetectionsByFloor: (floorId: number) => DetectionPoint[],
   currentFloorId: number,
-  blinkingZoneId: number | null = null
+  blinkingZoneId: number | null = null,
+  isAdmin: boolean = true
 ) => {
   
   const getZoneOfCamera = useCallback((cameraId: number): Zone | undefined => 
     zones.find(zone => zone.cameras.some(cam => cam.id === cameraId)), [zones]);
   
   const getZoneStyle = (camera: Camera, isSelected: boolean, isInZone: boolean, cameraZone: Zone | null) => {
+    // Если зона отключена вручную - тёмно-зелёный цвет
     if (cameraZone?.disabled) {
-      return { fill: 'rgba(34, 139, 34, 0.4)', stroke: '#228B22', width: '3' };
+      return { fill: 'rgba(34, 139, 34, 0.5)', stroke: '#228B22', width: '3' };
     }
     
     if (isSelectingZone) {
@@ -52,7 +54,12 @@ export const useSvgRenderer = (
       if (cameraZone?.disabled) {
         return { fill: 'rgba(34, 139, 34, 0.4)', stroke: '#228B22', width: '3' };
       }
-      return { fill: 'rgba(100,150,255,0.1)', stroke: cameraZone?.type === 'red' ? '#FF6666' : '#66FF66', width: '2' };
+      // Красная зона - ярко-красный, Зелёная зона - ярко-зелёный
+      return { 
+        fill: cameraZone?.type === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)', 
+        stroke: cameraZone?.type === 'red' ? '#EF4444' : '#22C55E', 
+        width: '2' 
+      };
     }
     return { fill: 'rgba(100,150,255,0.15)', stroke: '#6495ED', width: '2' };
   };
@@ -73,7 +80,7 @@ export const useSvgRenderer = (
     let cameraColor = '#FF4444';
     let borderColor = '#FFFFFF';
     let additionalClass = '';
-    let cursorStyle = 'cursor:pointer';
+    let cursorStyle = isAdmin ? 'cursor:pointer' : 'cursor:default';
     let hoverEffect = '';
     
     if (isSelectingZone) {
@@ -83,7 +90,7 @@ export const useSvgRenderer = (
       } else {
         cameraColor = '#333333';
       }
-    } else {
+    } else if (isAdmin) {
       additionalClass = 'clickable-camera';
       hoverEffect = `
         <style>
@@ -119,8 +126,9 @@ export const useSvgRenderer = (
   };
   
   const renderZoneBackground = (zone: Zone): string => {
+    // Если зона отключена вручную - тёмно-зелёный цвет
     if (zone.disabled) {
-      const color = 'rgba(34, 139, 34, 0.4)';
+      const color = 'rgba(34, 139, 34, 0.5)';
       const strokeColor = '#228B22';
       let result = '';
       zone.cameras.forEach((camera) => {
@@ -135,11 +143,11 @@ export const useSvgRenderer = (
     const isBlinking = blinkingZoneId === zone.id;
     
     const color = zone.type === 'red' 
-      ? (isBlinking ? 'rgba(255, 0, 0, 0.7)' : 'rgba(255, 80, 80, 0.35)')
-      : 'rgba(80, 255, 80, 0.35)';
+      ? (isBlinking ? 'rgba(255, 0, 0, 0.7)' : 'rgba(239, 68, 68, 0.35)')
+      : (isBlinking ? 'rgba(255, 215, 0, 0.5)' : 'rgba(34, 197, 94, 0.3)');
     const strokeColor = zone.type === 'red' 
-      ? (isBlinking ? '#FF0000' : '#FF4444')
-      : '#44FF44';
+      ? (isBlinking ? '#FF0000' : '#EF4444')
+      : (isBlinking ? '#FFD700' : '#22C55E');
     const strokeWidth = isBlinking ? '4' : '3';
     const animation = isBlinking ? 'animation: blink 0.5s infinite;' : '';
     

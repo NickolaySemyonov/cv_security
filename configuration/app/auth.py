@@ -1,4 +1,3 @@
-# backend/app/auth.py (исправленный)
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
@@ -35,7 +34,7 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
     if not authenticated_user:
         action_logger.log(
             db, 
-            user_id=0,
+            user_id=None,
             title="ОШИБКА ВХОДА",
             text=f"Неудачная попытка входа с логином: {login_data.login}"
         )
@@ -56,11 +55,10 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
         text=f"Пользователь {authenticated_user.login} вошел в систему"
     )
     
-    # ВАЖНО: добавляем поле role!
     user_response = UserResponse(
         id=authenticated_user.id,
         login=authenticated_user.login,
-        role=authenticated_user.role  # Добавлено поле role
+        role=authenticated_user.role
     )
     
     return TokenResponse(
@@ -69,7 +67,6 @@ async def login(login_data: UserLogin, db: Session = Depends(get_db)):
         token_type="bearer",
         user=user_response
     )
-
 
 @router.post("/refresh", response_model=RefreshResponse)
 async def refresh_token(request: RefreshRequest, db: Session = Depends(get_db)):
