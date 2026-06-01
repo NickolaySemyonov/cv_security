@@ -138,26 +138,21 @@ export const useSvgRenderer = (
       return result;
     }
     
-    // Проверяем, мигает ли эта зона
     const isBlinking = blinkingAreaId !== null && blinkingAreaId === zone.id;
     
-    // Для мигающей зоны используем ярко-красный цвет с анимацией
     let color, strokeColor, strokeWidth, animation;
     
     if (isBlinking) {
-      // Мигающая зона - ярко-красная
       color = 'rgba(255, 0, 0, 0.8)';
       strokeColor = '#FF0000';
       strokeWidth = '4';
       animation = 'animation: blink 0.8s ease-in-out infinite;';
     } else if (zone.type === 'red') {
-      // Обычная красная зона
       color = 'rgba(239, 68, 68, 0.35)';
       strokeColor = '#EF4444';
       strokeWidth = '3';
       animation = '';
     } else {
-      // Зелёная зона
       color = 'rgba(34, 197, 94, 0.3)';
       strokeColor = '#22C55E';
       strokeWidth = '3';
@@ -203,7 +198,6 @@ export const useSvgRenderer = (
   }, []);
   
   const getBaseSvg = useCallback((svgContent: string): string => {
-    // Ключ кэша включает blinkingAreaId для перерисовки при мигании
     const cacheKey = `${svgContent}_${cameras.length}_${zones.length}_${isSelectingZone}_${blinkingAreaId}`;
     
     if (svgCacheRef.current.has(cacheKey)) {

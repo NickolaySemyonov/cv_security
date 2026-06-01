@@ -67,6 +67,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [initialized, setInitialized] = useState(false);
   const [floorCameraIds, setFloorCameraIds] = useState<number[]>([]);
   const [blinkingAreaId, setBlinkingAreaId] = useState<number | null>(null);
+  const [forceRender, setForceRender] = useState(0);
   
   const [isSelectingZone, setIsSelectingZone] = useState(false);
   const [selectedCameras, setSelectedCameras] = useState<Set<number>>(new Set());
@@ -97,6 +98,20 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     await fetchZones();
     setUpdateTrigger(prev => prev + 1);
   };
+
+  // Принудительная перерисовка при мигании
+  useEffect(() => {
+    if (blinkingAreaId !== null) {
+      console.log('🔴 Мигание зоны:', blinkingAreaId);
+      setForceRender(prev => prev + 1);
+      // Через 5 секунд отключаем мигание
+      const timeout = setTimeout(() => {
+        setBlinkingAreaId(null);
+        setForceRender(prev => prev + 1);
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [blinkingAreaId]);
 
   useEffect(() => {
     fetchFloors();
@@ -440,8 +455,9 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   const svgHtml = useMemo(() => {
     if (!currentFloor?.map) return '';
+    console.log('🔄 Перерисовка SVG, мигающая зона:', blinkingAreaId);
     return getSvgWithAllElements(normalizeSvg(currentFloor.map));
-  }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingAreaId]);
+  }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingAreaId, forceRender]);
 
   const configuredCameras = cameras.filter(c => c.is_configured === true);
   const hasConfiguredCameras = configuredCameras.length > 0;
