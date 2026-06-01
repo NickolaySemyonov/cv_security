@@ -26,6 +26,7 @@ interface Camera {
 let ws: WebSocket | null = null;
 let detectionSubscribers: ((detections: DetectionPoint[]) => void)[] = [];
 let notificationSubscribers: ((notifications: Notification[]) => void)[] = [];
+let globalDetections: DetectionPoint[] = [];
 let activeNotifications: Notification[] = [];
 let cameraInfoCache: Map<number, { zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> = new Map();
 let lastRenderTime = 0;
@@ -36,6 +37,7 @@ let isConnecting = false;
 let connectionAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
 let isInitialized = false;
+let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
 
 // Хранилище текущих детекций по всем камерам
@@ -109,23 +111,15 @@ function getAllDetectionsAsArray(): DetectionPoint[] {
   return result;
 }
 
-function notifyDetectionSubscribers() {
-  const now = Date.now();
-  if (now - lastRenderTime >= RENDER_INTERVAL) {
-    lastRenderTime = now;
-    const detectionsCopy = getAllDetectionsAsArray();
-    detectionSubscribers.forEach(cb => {
-      try {
-        cb(detectionsCopy);
-      } catch (err) {
-        console.error('Ошибка в подписчике детекций:', err);
-      }
-    });
-  } else if (!renderTimeout) {
-    renderTimeout = setTimeout(() => {
-      renderTimeout = null;
-      lastRenderTime = Date.now();
-      const detectionsCopy = getAllDetectionsAsArray();
+function scheduleRender() {
+  if (renderTimeout) return;
+  
+  renderTimeout = setTimeout(() => {
+    renderTimeout = null;
+    if (pendingDetections) {
+      globalDetections = pendingDetections;
+      pendingDetections = null;
+      const detectionsCopy = [...globalDetections];
       detectionSubscribers.forEach(cb => {
         try {
           cb(detectionsCopy);
@@ -133,8 +127,13 @@ function notifyDetectionSubscribers() {
           console.error('Ошибка в подписчике детекций:', err);
         }
       });
-    }, RENDER_INTERVAL - (now - lastRenderTime));
-  }
+    }
+  }, RENDER_INTERVAL);
+}
+
+function notifyDetectionSubscribers(newDetections: DetectionPoint[]) {
+  pendingDetections = newDetections;
+  scheduleRender();
 }
 
 function notifyNotificationSubscribers() {
@@ -191,10 +190,11 @@ async function processDetection(data: any) {
     allDetections.delete(cameraId);
   }
   
-  notifyDetectionSubscribers();
+  notifyDetectionSubscribers(getAllDetectionsAsArray());
 }
 
 function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
+  console.log('🔔 addNotification вызван, area_id:', notification.area_id);
   const newNotification: Notification = {
     ...notification,
     id: `${Date.now()}_${Math.random()}`,
@@ -259,6 +259,7 @@ function connectWebSocket() {
         if (data.type === 'detection' && data.message) {
           await processDetection(data.message);
         } else if (data.type === 'alert' && data.message) {
+          console.log('🔔 ALERT получен, area_id:', data.message.area_id);
           addNotification({
             info: data.message.info,
             camera_id: data.message.camera_id,

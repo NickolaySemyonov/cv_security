@@ -11,19 +11,15 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
 
   useEffect(() => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
-    console.log('🔔 NotificationPanel - непрочитанные уведомления:', unreadNotifications.length);
     
     if (unreadNotifications.length > 0 && onAreaBlink) {
       const latestArea = unreadNotifications[0].area_id;
-      console.log('🔴 NotificationPanel - вызываем onAreaBlink с zone_id:', latestArea);
       onAreaBlink(latestArea);
     } else if (unreadNotifications.length === 0 && onAreaBlink) {
-      console.log('🔴 NotificationPanel - вызываем onAreaBlink с null');
       onAreaBlink(null);
     }
   }, [notifications, onAreaBlink]);
 
-  // Остальной код без изменений...
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
     return new Intl.DateTimeFormat('ru-RU', {

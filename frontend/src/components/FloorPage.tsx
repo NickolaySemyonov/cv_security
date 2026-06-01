@@ -100,6 +100,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   };
 
   useEffect(() => {
+    console.log('🔥 useEffect мигания, blinkingAreaId =', blinkingAreaId);
     if (blinkingAreaId !== null) {
       console.log('🔴 Начинаем мигание зоны:', blinkingAreaId);
       setForceRender(prev => prev + 1);

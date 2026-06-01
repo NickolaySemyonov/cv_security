@@ -14,10 +14,10 @@ interface HeaderProps {
   user: User | null;
   onLogout: () => void;
   title?: string;
-  onZoneBlink?: (zoneId: number | null) => void;
+  onAreaBlink?: (areaId: number | null) => void;
 }
 
-const Header = ({ user, onLogout, title = "CV Security", onZoneBlink }: HeaderProps) => {
+const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderProps) => {
   const navigate = useNavigate();
   const [showLogs, setShowLogs] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -47,7 +47,7 @@ const Header = ({ user, onLogout, title = "CV Security", onZoneBlink }: HeaderPr
           </div>
           
           <div className="flex items-center gap-2">
-            <NotificationPanel onZoneBlink={onZoneBlink} />
+            <NotificationPanel onAreaBlink={onAreaBlink} />
 
             {isAdmin && (
               <button
