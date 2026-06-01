@@ -3,17 +3,23 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 import jwt
 import os
+from dotenv import load_dotenv
+from pathlib import Path
 from database import get_db
 from crud.user import user
 from crud.logs import action_logger
 from schemas import UserLogin, TokenResponse, UserResponse, RefreshResponse, RefreshRequest
 
+# Загружаем .env из корня проекта
+env_path = Path(__file__).parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 router = APIRouter(prefix="/auth", tags=["authentication"])
 
-SECRET_KEY = "gagara"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30 
-REFRESH_TOKEN_EXPIRE_DAYS = 7     
+SECRET_KEY = os.getenv("SECRET_KEY", "gagara_super_secret_key_2026_for_cv_security_system_very_long_key_12345")
+ALGORITHM = os.getenv("JWT_ALGORITHM", "HS256")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
 
 def create_access_token(data: dict):
     to_encode = data.copy()

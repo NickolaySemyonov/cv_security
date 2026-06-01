@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNotifications, Notification } from '../hooks/useNotifications';
+import { useWebSocket, Notification } from '../hooks/useWebSocket';
 
 interface NotificationPanelProps {
   onZoneBlink?: (zoneId: number | null) => void;
@@ -7,7 +7,7 @@ interface NotificationPanelProps {
 
 const NotificationPanel = ({ onZoneBlink }: NotificationPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useNotifications();
+  const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useWebSocket();
 
   useEffect(() => {
     const unreadNotifications = notifications.filter(n => !n.isRead);

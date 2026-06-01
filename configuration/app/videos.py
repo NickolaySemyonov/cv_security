@@ -1,21 +1,24 @@
-# configuration/app/videos.py
 import os
 from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import FileResponse
 from typing import List
+from pathlib import Path
+from dotenv import load_dotenv
 from security import get_current_user
 from models import User
 
+# Загружаем .env из корня проекта
+env_path = Path(__file__).parent.parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
+
 router = APIRouter(prefix="/videos", tags=["videos"])
 
-VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
-
+VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY", "./storage/videos")
 
 @router.get("/list")
 async def get_videos_list(
     current_user: User = Depends(get_current_user)
 ):
-    """Получить список всех видео файлов из папки"""
     try:
         if not os.path.exists(VIDEOS_DIRECTORY):
             os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
@@ -36,13 +39,11 @@ async def get_videos_list(
     except Exception as e:
         raise HTTPException(500, f"Ошибка получения списка видео: {str(e)}")
 
-
 @router.get("/{filename}")
 async def get_video_file(
     filename: str,
     current_user: User = Depends(get_current_user)
 ):
-    """Получить видео файл (альтернативный способ без статической раздачи)"""
     file_path = os.path.join(VIDEOS_DIRECTORY, filename)
     if not os.path.exists(file_path):
         raise HTTPException(404, "Видео не найдено")

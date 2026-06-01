@@ -18,6 +18,12 @@ from datetime import datetime
 from database import SessionLocal
 from models import Area, Schedule
 from crud.logs import action_logger
+from dotenv import load_dotenv
+from pathlib import Path
+
+# Загружаем .env из корня проекта
+env_path = Path(__file__).parent.parent.parent / '.env'
+load_dotenv(dotenv_path=env_path)
 
 app = FastAPI(title="CV Security API")
 
@@ -39,7 +45,7 @@ app.include_router(logs_router)
 app.include_router(schedules_router)
 app.include_router(users_router)
 
-VIDEOS_DIRECTORY = "D:/DIPLOM/cv_security/storage/videos"
+VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY", "./storage/videos")
 os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
 app.mount("/static/videos", StaticFiles(directory=VIDEOS_DIRECTORY), name="videos")
 
@@ -64,9 +70,8 @@ async def health_check():
     return {"status": "ok"}
 
 async def schedule_color_updater():
-    """Фоновый процесс для автоматического обновления цветов зон по расписанию"""
     while True:
-        await asyncio.sleep(1)  # Проверяем каждую секунду
+        await asyncio.sleep(1)
         db = None
         try:
             db = SessionLocal()
@@ -79,18 +84,15 @@ async def schedule_color_updater():
             current_second = now.second
             current_total = current_hour * 3600 + current_minute * 60 + current_second
             
-            # Получаем все зоны, у которых не отключена охрана вручную
             areas = db.query(Area).filter(Area.disabled == False).all()
             updated_count = 0
             
             for area in areas:
-                # Получаем расписание для текущего дня
                 schedules = db.query(Schedule).filter(
                     Schedule.area_id == area.id,
                     Schedule.day == current_day
                 ).all()
                 
-                # Проверяем, активна ли зона по расписанию
                 is_active = False
                 for schedule in schedules:
                     start = schedule.start_time
@@ -104,7 +106,6 @@ async def schedule_color_updater():
                     start_total = start.hour * 3600 + start.minute * 60 + start.second
                     end_total = end.hour * 3600 + end.minute * 60 + end.second
                     
-                    # Обработка интервалов через полночь
                     if start_total <= end_total:
                         if start_total <= current_total <= end_total:
                             is_active = True
@@ -114,10 +115,8 @@ async def schedule_color_updater():
                             is_active = True
                             break
                 
-                # Определяем целевой цвет
                 target_type = "red" if is_active else "green"
                 
-                # Меняем цвет если нужно
                 if area.type != target_type:
                     old_type = area.type
                     area.type = target_type

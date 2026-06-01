@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import api from '../config/axios';
 
 interface DetectionPoint {
@@ -117,10 +117,17 @@ async function processDetection(data: any) {
 
 function connectWebSocket() {
   if (isConnecting) {
+    console.log('WebSocket детекций уже подключается, пропускаем');
     return;
   }
   
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
+  if (ws && ws.readyState === WebSocket.OPEN) {
+    console.log('WebSocket детекций уже открыт, пропускаем');
+    return;
+  }
+  
+  if (ws && ws.readyState === WebSocket.CONNECTING) {
+    console.log('WebSocket детекций уже подключается, пропускаем');
     return;
   }
   
@@ -152,6 +159,7 @@ function connectWebSocket() {
       
       if (subscribers.length > 0 && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
         connectionAttempts++;
+        console.log(`Попытка переподключения ${connectionAttempts}/${MAX_RECONNECT_ATTEMPTS}`);
         setTimeout(connectWebSocket, 3000);
       }
     };
@@ -178,12 +186,15 @@ function closeWebSocket() {
 export function useCameraDetection() {
   const [detections, setDetections] = useState<DetectionPoint[]>([]);
   const [isConnected, setIsConnected] = useState(false);
+  const isMounted = useRef(true);
+  const subscriptionRef = useRef<((detections: DetectionPoint[]) => void) | null>(null);
 
   const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
     globalDetections = [];
     setDetections([]);
+    console.log(`📌 Зарегистрированы камеры ${cameraIds.join(', ')} на этаже ${floorId}`);
   };
 
   const getDetectionsByFloor = (floorId: number): DetectionPoint[] => {
@@ -193,29 +204,48 @@ export function useCameraDetection() {
   const clearDetections = () => {
     globalDetections = [];
     setDetections([]);
+    console.log('🧹 Детекции очищены');
   };
 
   useEffect(() => {
+    isMounted.current = true;
+    
     const subscription = (newDetections: DetectionPoint[]) => {
-      setDetections(newDetections);
+      if (isMounted.current) {
+        setDetections(newDetections);
+      }
     };
     
+    subscriptionRef.current = subscription;
     subscribers.push(subscription);
     
+    console.log(`Подписчиков детекций: ${subscribers.length}`);
+    
     if (subscribers.length === 1) {
+      console.log('Первый подписчик, создаём WebSocket соединение');
       connectWebSocket();
     }
     
     const interval = setInterval(() => {
-      setIsConnected(ws !== null && ws.readyState === WebSocket.OPEN);
+      if (isMounted.current) {
+        const connected = ws !== null && ws.readyState === WebSocket.OPEN;
+        setIsConnected(connected);
+      }
     }, 1000);
     
     return () => {
-      const index = subscribers.indexOf(subscription);
-      if (index !== -1) subscribers.splice(index, 1);
+      isMounted.current = false;
+      if (subscriptionRef.current) {
+        const index = subscribers.indexOf(subscriptionRef.current);
+        if (index !== -1) subscribers.splice(index, 1);
+        subscriptionRef.current = null;
+      }
       clearInterval(interval);
       
+      console.log(`Подписчиков детекций после удаления: ${subscribers.length}`);
+      
       if (subscribers.length === 0) {
+        console.log('Нет подписчиков, закрываем WebSocket детекций');
         closeWebSocket();
       }
     };

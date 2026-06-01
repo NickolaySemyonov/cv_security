@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import api from '../config/axios';
 import Header from './Header';
@@ -8,7 +8,8 @@ import ScheduleManager from './ScheduleManager';
 import ZonesListModal from './ZonesListModal';
 import HomographyCalibration from './HomographyCalibration';
 import { useSvgRenderer } from '../hooks/useSvgRenderer';
-import { useCameraDetection } from '../hooks/useCameraDetection';
+import { useWebSocket } from '../hooks/useWebSocket';
+import { useAlert } from './CustomAlert';
 
 interface Floor {
   id: number;
@@ -53,6 +54,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const location = useLocation();
   const decodedPlace = decodeURIComponent(place || '');
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const { showAlert, AlertComponent } = useAlert();
   
   const [floors, setFloors] = useState<Floor[]>([]);
   const [currentFloor, setCurrentFloor] = useState<Floor | null>(null);
@@ -76,9 +78,8 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [selectedCameraForCalibration, setSelectedCameraForCalibration] = useState<Camera | null>(null);
 
   const isAdmin = user?.role === 'admin';
-  const isOperator = user?.role === 'operator';
 
-  const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useCameraDetection();
+  const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useWebSocket();
   const { getSvgWithAllElements } = useSvgRenderer(
     cameras, zones, isSelectingZone, selectedCameras, editingZone, 
     getDetectionsByFloor, currentFloor?.id || 0,
@@ -90,6 +91,11 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     const params = new URLSearchParams(location.search);
     const floorParam = params.get('floor');
     return floorParam ? parseInt(floorParam, 10) : null;
+  };
+
+  const handleZonesUpdate = async () => {
+    await fetchZones();
+    setUpdateTrigger(prev => prev + 1);
   };
 
   useEffect(() => {
@@ -167,10 +173,11 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const fetchFloors = async () => {
     try {
       setLoading(true);
-      const response = await api.get<Floor[]>('/floors');
-      const objectFloors = response.data.filter(f => f.place === decodedPlace);
+      const response = await api.get('/floors/');
+      const objectFloors = response.data.filter((f: Floor) => f.place === decodedPlace);
       setFloors(objectFloors);
     } catch (err) {
+      console.error('Ошибка загрузки этажей:', err);
       setError('Не удалось загрузить этажи');
     } finally {
       setLoading(false);
@@ -211,15 +218,16 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const handleDeleteFloor = async () => {
     if (!currentFloor) return;
     
-    const confirmMessage = `Вы действительно хотите удалить этаж ${currentFloor.number} у объекта "${decodedPlace}"?\n\nВсе камеры и зоны на этом этаже также будут удалены.`;
-    
-    if (!window.confirm(confirmMessage)) return;
+    if (!window.confirm(`Вы действительно хотите удалить этаж ${currentFloor.number} у объекта "${decodedPlace}"?\n\nВсе камеры и зоны на этом этаже также будут удалены.`)) return;
     
     try {
       await api.delete(`/floors/${currentFloor.id}`);
-      window.location.href = '/objects';
+      showAlert('Этаж успешно удалён', 'success');
+      setTimeout(() => {
+        window.location.href = '/objects';
+      }, 1000);
     } catch (error: any) {
-      alert(error.response?.data?.detail || 'Ошибка при удалении этажа');
+      showAlert(error.response?.data?.detail || 'Ошибка при удалении этажа', 'error');
     }
   };
 
@@ -292,7 +300,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     
     if (editingZone) {
       if (cameraInZone && cameraZone?.id !== editingZone.id) {
-        alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`);
+        showAlert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
         return;
       }
       const newSelected = new Set(selectedCameras);
@@ -306,7 +314,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     }
     
     if (cameraInZone) {
-      alert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`);
+      showAlert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
       return;
     }
     
@@ -321,14 +329,14 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   const saveZone = async () => {
     if (selectedCameras.size === 0) {
-      alert('Выберите хотя бы одну камеру для зоны');
+      showAlert('Выберите хотя бы одну камеру для зоны', 'warning');
       return;
     }
 
     if (!editingZone) {
       const camerasInOtherZones = Array.from(selectedCameras).filter(camId => isCameraInAnyZone(camId));
       if (camerasInOtherZones.length > 0) {
-        alert(`❌ Невозможно создать зону!\n\nНекоторые камеры уже принадлежат другим зонам.`);
+        showAlert('❌ Невозможно создать зону! Некоторые камеры уже принадлежат другим зонам.', 'error');
         return;
       }
     }
@@ -339,19 +347,21 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
         await api.patch(`/areas/${editingZone.id}`, {
           camera_ids: Array.from(selectedCameras)
         });
+        showAlert('Зона успешно обновлена', 'success');
       } else {
         await api.post('/areas/', {
           type: 'green',
           floor_id: currentFloor!.id,
           camera_ids: Array.from(selectedCameras)
         });
+        showAlert('Зона успешно создана', 'success');
       }
       
       await fetchZones();
       exitZoneSelectionMode();
     } catch (error: any) {
       console.error('Ошибка сохранения зоны:', error);
-      alert(error.response?.data?.detail || 'Ошибка при сохранении зоны');
+      showAlert(error.response?.data?.detail || 'Ошибка при сохранении зоны', 'error');
     } finally {
       setSavingZone(false);
     }
@@ -362,19 +372,15 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     try {
       await api.delete(`/areas/${zoneId}`);
       await fetchZones();
+      showAlert('Зона успешно удалена', 'success');
     } catch (error) {
       console.error('Ошибка удаления зоны:', error);
-      alert('Ошибка при удалении зоны');
+      showAlert('Ошибка при удалении зоны', 'error');
     }
   };
 
   const handleOpenSchedule = (zone: Zone) => {
     setScheduleArea(zone);
-  };
-
-  const handleZoneUpdated = async () => {
-    await fetchZones();
-    setUpdateTrigger(prev => prev + 1);
   };
 
   const handleCameraClick = (cameraId: number) => {
@@ -560,6 +566,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+      {AlertComponent}
       <Header user={user} onLogout={onLogout} title={decodedPlace} onZoneBlink={setBlinkingZoneId} />
 
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow">
@@ -628,6 +635,8 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             onSave={saveZone}
             onOpenZonesList={() => setShowZonesModal(true)}
             isAdmin={isAdmin}
+            showAlert={showAlert}
+            onZonesUpdate={handleZonesUpdate}
           />
         )}
 
@@ -703,6 +712,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
             setShowZonesModal(true);
           }}
           isAdmin={isAdmin}
+          showAlert={showAlert}
         />
       )}
 
@@ -714,6 +724,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           onDeleteZone={deleteZone}
           onOpenSchedule={handleOpenSchedule}
           isAdmin={isAdmin}
+          showAlert={showAlert}
         />
       )}
 
@@ -726,6 +737,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           onSave={() => {
             setShowHomographyCalibration(false);
             fetchCameras();
+            showAlert('Калибровка камеры успешно сохранена', 'success');
           }}
           onCancel={() => setShowHomographyCalibration(false)}
           isReCalibration={selectedCameraForCalibration.is_configured || false}

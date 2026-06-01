@@ -82,7 +82,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
       </div>
       
       <div className="relative w-full max-w-md">
-        <div className="card p-8 animate-fadeIn">
+        <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-8 animate-fadeIn shadow-xl">
           <div className="text-center mb-8">
             <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-2xl shadow-blue-500/25 animate-glow">
               <svg className="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -109,7 +109,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
                 type="text"
                 value={login}
                 onChange={(e) => setLogin(e.target.value)}
-                className="input w-full"
+                className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-xl text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500"
                 placeholder="Введите логин"
                 disabled={loading}
                 autoComplete="username"
@@ -122,7 +122,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="input w-full"
+                className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-xl text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-500"
                 placeholder="Введите пароль"
                 disabled={loading}
                 autoComplete="current-password"
@@ -132,7 +132,7 @@ const Login = ({ onLoginSuccess }: LoginProps) => {
             <button
               type="submit"
               disabled={loading}
-              className="btn-primary w-full py-3 text-base disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-xl font-medium hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg shadow-blue-500/25 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">

@@ -1,167 +1,140 @@
 import { useState, useEffect } from 'react';
+import { useWebSocket, Notification } from '../hooks/useWebSocket';
 
-export interface Notification {
-  id: string;
-  info: string;
-  camera_id: number;
-  zone_id: number;
-  timestamp: number;
-  isRead: boolean;
+interface NotificationPanelProps {
+  onZoneBlink?: (zoneId: number | null) => void;
 }
 
-let ws: WebSocket | null = null;
-let notificationSubscribers: ((notifications: Notification[]) => void)[] = [];
-let activeNotifications: Notification[] = [];
-let isConnecting = false;
-let connectionAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-
-const WS_URL = `ws://${window.location.hostname}:8766`;
-
-function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
-  const newNotification: Notification = {
-    ...notification,
-    id: `${Date.now()}_${Math.random()}`,
-    isRead: false
-  };
-  
-  activeNotifications = [newNotification, ...activeNotifications];
-  
-  if (activeNotifications.length > 50) {
-    activeNotifications = activeNotifications.slice(0, 50);
-  }
-  
-  notificationSubscribers.forEach(cb => cb([...activeNotifications]));
-  
-  setTimeout(() => {
-    const stillExists = activeNotifications.find(n => n.id === newNotification.id);
-    if (stillExists && !stillExists.isRead) {
-      activeNotifications = activeNotifications.filter(n => n.id !== newNotification.id);
-      notificationSubscribers.forEach(cb => cb([...activeNotifications]));
-    }
-  }, 10000);
-}
-
-function markAsRead(notificationId: string) {
-  const notification = activeNotifications.find(n => n.id === notificationId);
-  if (notification) {
-    notification.isRead = true;
-    notificationSubscribers.forEach(cb => cb([...activeNotifications]));
-  }
-  
-  setTimeout(() => {
-    activeNotifications = activeNotifications.filter(n => n.id !== notificationId);
-    notificationSubscribers.forEach(cb => cb([...activeNotifications]));
-  }, 500);
-}
-
-function clearAllNotifications() {
-  activeNotifications = [];
-  notificationSubscribers.forEach(cb => cb([]));
-}
-
-function removeNotification(notificationId: string) {
-  activeNotifications = activeNotifications.filter(n => n.id !== notificationId);
-  notificationSubscribers.forEach(cb => cb([...activeNotifications]));
-}
-
-function connectWebSocket() {
-  if (isConnecting) {
-    return;
-  }
-  
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
-    return;
-  }
-  
-  isConnecting = true;
-  
-  try {
-    ws = new WebSocket(WS_URL);
-    
-    ws.onopen = () => {
-      console.log('✅ WebSocket уведомлений подключен');
-      isConnecting = false;
-      connectionAttempts = 0;
-    };
-    
-    ws.onmessage = async (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.type === 'alert' && data.message) {
-          addNotification({
-            info: data.message.info,
-            camera_id: data.message.camera_id,
-            zone_id: data.message.zone_id,
-            timestamp: data.message.timestamp
-          });
-        }
-      } catch (error) {
-        console.error('Ошибка обработки уведомления:', error);
-      }
-    };
-    
-    ws.onclose = () => {
-      console.log('WebSocket уведомлений закрыт');
-      ws = null;
-      isConnecting = false;
-      
-      if (notificationSubscribers.length > 0 && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-        connectionAttempts++;
-        setTimeout(connectWebSocket, 3000);
-      }
-    };
-    
-    ws.onerror = (error) => {
-      console.error('WebSocket уведомлений ошибка:', error);
-      isConnecting = false;
-    };
-  } catch (error) {
-    console.error('Ошибка создания WebSocket уведомлений:', error);
-    isConnecting = false;
-  }
-}
-
-function closeWebSocket() {
-  if (ws) {
-    ws.close();
-    ws = null;
-  }
-  isConnecting = false;
-  connectionAttempts = 0;
-}
-
-export function useNotifications() {
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+const NotificationPanel = ({ onZoneBlink }: NotificationPanelProps) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useWebSocket();
 
   useEffect(() => {
-    const subscription = (newNotifications: Notification[]) => {
-      setNotifications(newNotifications);
-      setUnreadCount(newNotifications.filter(n => !n.isRead).length);
-    };
-    
-    notificationSubscribers.push(subscription);
-    
-    if (notificationSubscribers.length === 1) {
-      connectWebSocket();
+    const unreadNotifications = notifications.filter(n => !n.isRead);
+    if (unreadNotifications.length > 0 && onZoneBlink) {
+      const latestZone = unreadNotifications[0].zone_id;
+      onZoneBlink(latestZone);
+    } else if (unreadNotifications.length === 0) {
+      if (onZoneBlink) onZoneBlink(null);
     }
-    
-    return () => {
-      const index = notificationSubscribers.indexOf(subscription);
-      if (index !== -1) notificationSubscribers.splice(index, 1);
-      
-      if (notificationSubscribers.length === 0) {
-        closeWebSocket();
-      }
-    };
-  }, []);
-  
-  return {
-    notifications,
-    unreadCount,
-    markAsRead,
-    clearAllNotifications,
-    removeNotification
+  }, [notifications, onZoneBlink]);
+
+  const formatTime = (timestamp: number) => {
+    const date = new Date(timestamp * 1000);
+    return new Intl.DateTimeFormat('ru-RU', {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit'
+    }).format(date);
   };
-}
+
+  const handleNotificationClick = (notification: Notification) => {
+    if (!notification.isRead) {
+      markAsRead(notification.id);
+    }
+  };
+
+  const handleCloseNotification = (e: React.MouseEvent, notificationId: string) => {
+    e.stopPropagation();
+    removeNotification(notificationId);
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="relative p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-200 group"
+        title="Уведомления"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+        </svg>
+        {unreadCount > 0 && (
+          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full shadow-lg shadow-red-500/50 animate-pulse">
+            {unreadCount > 9 ? '9+' : unreadCount}
+          </span>
+        )}
+      </button>
+
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setIsOpen(false)} />
+          <div className="absolute right-0 mt-2 w-96 z-50 bg-gray-800 rounded-2xl shadow-2xl border border-gray-700 animate-slideIn overflow-hidden">
+            <div className="flex justify-between items-center p-4 border-b border-gray-700 bg-gray-800/95">
+              <h3 className="text-lg font-bold bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+                🔔 Уведомления
+              </h3>
+              <div className="flex gap-2">
+                {notifications.length > 0 && (
+                  <button
+                    onClick={clearAllNotifications}
+                    className="text-xs text-gray-400 hover:text-gray-200 transition-colors"
+                  >
+                    Очистить все
+                  </button>
+                )}
+                <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-200">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="max-h-96 overflow-auto bg-gray-800/95">
+              {notifications.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="text-4xl mb-2">🔕</div>
+                  <p className="text-gray-500">Нет уведомлений</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-gray-700">
+                  {notifications.map((notification) => (
+                    <div
+                      key={notification.id}
+                      onClick={() => handleNotificationClick(notification)}
+                      className={`p-4 cursor-pointer transition-all duration-200 ${
+                        notification.isRead 
+                          ? 'hover:bg-gray-700/50' 
+                          : 'bg-red-500/10 hover:bg-red-500/20 border-l-2 border-l-red-500'
+                      }`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-red-500 text-lg animate-pulse">🔴</span>
+                            <span className="font-semibold text-gray-300 text-sm">
+                              Зона #{notification.zone_id}
+                            </span>
+                            {!notification.isRead && (
+                              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            )}
+                          </div>
+                          <p className="text-gray-400 text-sm mb-2">{notification.info}</p>
+                          <div className="flex gap-3 text-xs text-gray-500">
+                            <span>📷 Камера #{notification.camera_id}</span>
+                            <span>🕐 {formatTime(notification.timestamp)}</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => handleCloseNotification(e, notification.id)}
+                          className="text-gray-500 hover:text-gray-300 transition-colors ml-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+export default NotificationPanel;
