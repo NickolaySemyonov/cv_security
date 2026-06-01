@@ -1,2 +1,3 @@
 faststream[rabbit]
 pydantic-settings
+asyncpg

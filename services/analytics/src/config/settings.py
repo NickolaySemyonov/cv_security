@@ -7,4 +7,11 @@ class Settings(BaseSettings):
     rabbitmq_user: str
     rabbitmq_password: str
 
+    # DB settings
+    postgres_host: str
+    postgres_port: int
+    postgres_db: str
+    postgres_user: str
+    postgres_password: str
+
     model_config = {"env_file": ".env"}
