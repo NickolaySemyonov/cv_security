@@ -38,7 +38,7 @@ async def handle_detection(message: dict):
 
 
 @rabbit_router.subscriber(
-    RabbitQueue(ALERTS_QUEUE_NAME, durable=True),
+    RabbitQueue(ALERTS_QUEUE_NAME, durable=True, routing_key='violation'),
     RabbitExchange(ALERTS_EXCHANGE_NAME, type=ExchangeType.TOPIC, durable=True)
 )
 async def handle_alert(message: dict):

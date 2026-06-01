@@ -34,7 +34,7 @@ async def analyze_detection_message(
         await broker.publish(
             result.model_dump(),
             exchange=RabbitExchange(name=ALERTS_EXCHANGE_NAME, type=ExchangeType.TOPIC, durable=True),
-            routing_key=result.type
+            routing_key='violation'
         )
 
 
