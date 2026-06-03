@@ -94,3 +94,22 @@ CREATE INDEX IF NOT EXISTS idx_schedule_day ON schedule(day);
 CREATE INDEX IF NOT EXISTS idx_detection_camera_id ON detection(camera_id);
 CREATE INDEX IF NOT EXISTS idx_detection_time ON detection(time);
 
+-- 11. Обновление внешних ключей для каскадного удаления
+DO $$ 
+BEGIN
+    -- Для schedule
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'schedule_area_id_fkey') THEN
+        ALTER TABLE schedule DROP CONSTRAINT schedule_area_id_fkey;
+    END IF;
+    IF EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'fk_area') THEN
+        ALTER TABLE schedule DROP CONSTRAINT fk_area;
+    END IF;
+    
+    -- Добавляем новое ограничение с CASCADE
+    ALTER TABLE schedule ADD CONSTRAINT fk_schedule_area 
+        FOREIGN KEY (area_id) REFERENCES area(id) ON DELETE CASCADE;
+        
+EXCEPTION
+    WHEN others THEN
+        RAISE NOTICE 'Ограничения уже настроены';
+END $$;
