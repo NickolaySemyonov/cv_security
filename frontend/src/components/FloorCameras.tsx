@@ -5,6 +5,7 @@ import Header from './Header';
 import Footer from './Footer';
 import CameraDrawer from './CameraDrawer';
 import HomographyCalibration from './HomographyCalibration';
+import { useAlert } from './CustomAlert';
 
 interface Floor {
   id: number;
@@ -26,6 +27,7 @@ interface Camera {
   is_configured?: boolean;
   points_of_homography?: any;
   rotation?: number;
+  video_stream?: string;
 }
 
 interface FloorCamerasProps {
@@ -36,6 +38,7 @@ interface FloorCamerasProps {
 const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { showAlert, AlertComponent } = useAlert();
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loading, setLoading] = useState(true);
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -76,6 +79,14 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
     }
   };
 
+  const fetchZones = async () => {
+    try {
+      await api.get(`/areas/floor/${id}`);
+    } catch (error) {
+      console.error('Ошибка обновления зон:', error);
+    }
+  };
+
   const handleSaveCamera = async (cameraData: any) => {
     try {
       await api.post('/cameras', {
@@ -83,11 +94,13 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
         floor_id: parseInt(id || '0')
       });
       await fetchCameras();
+      await fetchZones();
       setShowCameraDrawer(false);
       sessionStorage.setItem('camerasUpdated', Date.now().toString());
+      showAlert('Камера успешно добавлена', 'success');
     } catch (error) {
       console.error('Ошибка сохранения камеры:', error);
-      alert('Ошибка при сохранении камеры');
+      showAlert('Ошибка при сохранении камеры', 'error');
     }
   };
 
@@ -96,10 +109,12 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       try {
         await api.delete(`/cameras/${cameraId}`);
         await fetchCameras();
+        await fetchZones();
         sessionStorage.setItem('camerasUpdated', Date.now().toString());
+        showAlert('Камера успешно удалена', 'success');
       } catch (error) {
         console.error('Ошибка удаления камеры:', error);
-        alert('Ошибка при удалении камеры');
+        showAlert('Ошибка при удалении камеры', 'error');
       }
     }
   };
@@ -123,8 +138,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
     
     let modifiedSvg = svgContent;
     
-    cameras.forEach((camera) => {
-      if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
+    cameras.forEach((camera) => {if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
         const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
         modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
@@ -165,6 +179,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+      {AlertComponent}
       <Header user={user} onLogout={onLogout} title={`Добавление камер: ${floor?.place} - Этаж ${floor?.number}`} />
 
       <main className="max-w-6xl mx-auto px-6 py-8 flex-grow">
@@ -302,6 +317,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
           onSave={() => {
             setShowHomographyCalibration(false);
             fetchCameras();
+            showAlert('Калибровка камеры успешно сохранена', 'success');
           }}
           onCancel={() => setShowHomographyCalibration(false)}
           isReCalibration={selectedCameraForCalibration.is_configured || false}
@@ -312,3 +328,5 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
 };
 
 export default FloorCameras;
+
+

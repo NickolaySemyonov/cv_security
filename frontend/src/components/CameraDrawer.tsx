@@ -52,11 +52,27 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
     const svgElement = svgContainerRef.current?.querySelector('svg');
     if (!svgElement) return null;
     
-    const rect = svgElement.getBoundingClientRect();
-    const x = clientX - rect.left;
-    const y = clientY - rect.top;
-    
-    return { x, y };
+    try {
+      const rect = svgElement.getBoundingClientRect();
+      
+      if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) {
+        return null;
+      }
+      
+      const pt = svgElement.createSVGPoint();
+      pt.x = clientX;
+      pt.y = clientY;
+      
+      const ctm = svgElement.getScreenCTM();
+      if (!ctm) return null;
+      
+      const svgPoint = pt.matrixTransform(ctm.inverse());
+      
+      return { x: svgPoint.x, y: svgPoint.y };
+    } catch (error) {
+      console.error('Ошибка преобразования координат:', error);
+      return null;
+    }
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -116,7 +132,9 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const createRectangle = (p1: Point, p2: Point): Point[] => {
     const minX = Math.min(p1.x, p2.x);
     const minY = Math.min(p1.y, p2.y);
-    const maxX = Math.max(p1.x, p2.x);
+
+
+const maxX = Math.max(p1.x, p2.x);
     const maxY = Math.max(p1.y, p2.y);
     
     return [
@@ -233,7 +251,10 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
       if (camera.position) {
         const x = camera.position.x;
         const y = camera.position.y;
-        modifiedSvg = modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
+        modifiedSvg =
+
+
+modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
       }
     });
     

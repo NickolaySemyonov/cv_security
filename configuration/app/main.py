@@ -20,6 +20,7 @@ from database import SessionLocal
 from models import Area, Schedule
 from crud.logs import action_logger
 from dotenv import load_dotenv
+
 load_dotenv()
 
 app = FastAPI(title="CV Security API")
@@ -37,16 +38,13 @@ app.include_router(auth_router)
 app.include_router(floors_router)
 app.include_router(cameras_router)
 app.include_router(videos_router)
-app.include_router(incidents_router)
 app.include_router(areas_router)
 app.include_router(logs_router)
 app.include_router(schedules_router)
 app.include_router(users_router)
+app.include_router(incidents_router)
 
-VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY")
-if not VIDEOS_DIRECTORY:
-    raise ValueError("VIDEOS_DIRECTORY не задан в .env файле")
-
+VIDEOS_DIRECTORY = os.getenv("VIDEOS_DIRECTORY", "./storage/videos")
 os.makedirs(VIDEOS_DIRECTORY, exist_ok=True)
 app.mount("/static/videos", StaticFiles(directory=VIDEOS_DIRECTORY), name="videos")
 
@@ -72,7 +70,7 @@ async def health_check():
 
 async def schedule_color_updater():
     while True:
-        await asyncio.sleep(1)
+        await asyncio.sleep(30)
         db = None
         try:
             db = SessionLocal()
@@ -151,7 +149,7 @@ async def startup_event():
     print("🚀 ЗАПУСК СЕРВЕРА")
     print("="*50)
     asyncio.create_task(schedule_color_updater())
-    print("✅ Фоновая задача запущена (проверка расписания каждую секунду)")
+    print("✅ Фоновая задача запущена (проверка расписания каждые 30 секунд)")
     print("="*50 + "\n")
 
 @app.on_event("shutdown")

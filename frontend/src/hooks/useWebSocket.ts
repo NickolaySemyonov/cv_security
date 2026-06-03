@@ -12,7 +12,6 @@ export interface Notification {
   id: string;
   info: string;
   camera_id: number;
-  area_id: number;
   timestamp: number;
   isRead: boolean;
 }
@@ -40,7 +39,6 @@ let isInitialized = false;
 let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
 
-// Хранилище текущих детекций по всем камерам
 let allDetections: Map<number, DetectionPoint[]> = new Map();
 
 const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
@@ -133,7 +131,9 @@ function scheduleRender() {
 
 function notifyDetectionSubscribers(newDetections: DetectionPoint[]) {
   pendingDetections = newDetections;
-  scheduleRender();
+
+
+scheduleRender();
 }
 
 function notifyNotificationSubscribers() {
@@ -183,7 +183,6 @@ async function processDetection(data: any) {
     }
   });
   
-  // Обновляем точки только для этой камеры, остальные камеры не трогаем
   if (newDetectionsForCamera.length > 0) {
     allDetections.set(cameraId, newDetectionsForCamera);
   } else {
@@ -194,7 +193,6 @@ async function processDetection(data: any) {
 }
 
 function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
-  console.log('🔔 addNotification вызван, area_id:', notification.area_id);
   const newNotification: Notification = {
     ...notification,
     id: `${Date.now()}_${Math.random()}`,
@@ -259,11 +257,9 @@ function connectWebSocket() {
         if (data.type === 'detection' && data.message) {
           await processDetection(data.message);
         } else if (data.type === 'alert' && data.message) {
-          console.log('🔔 ALERT получен, area_id:', data.message.area_id);
           addNotification({
             info: data.message.info,
             camera_id: data.message.camera_id,
-            area_id: data.message.area_id,
             timestamp: data.message.timestamp
           });
         }
@@ -290,7 +286,10 @@ function connectWebSocket() {
     };
   } catch (error) {
     console.error('Ошибка создания WebSocket:', error);
-    isConnecting = false;
+    isConnecting =
+
+
+false;
   }
 }
 

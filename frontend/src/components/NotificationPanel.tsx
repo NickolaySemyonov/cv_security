@@ -11,10 +11,9 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
 
   useEffect(() => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
-    
     if (unreadNotifications.length > 0 && onAreaBlink) {
-      const latestArea = unreadNotifications[0].area_id;
-      onAreaBlink(latestArea);
+      const latestCamera = unreadNotifications[0].camera_id;
+      onAreaBlink(latestCamera);
     } else if (unreadNotifications.length === 0 && onAreaBlink) {
       onAreaBlink(null);
     }
@@ -75,7 +74,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                   </button>
                 )}
                 <button onClick={() => setIsOpen(false)} className="text-gray-400 hover:text-gray-200">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
@@ -89,7 +88,10 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                   <p className="text-gray-500">Нет уведомлений</p>
                 </div>
               ) : (
-                <div className="divide-y divide-gray-700">
+                <div className="divide-y
+
+
+divide-gray-700">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}
@@ -105,7 +107,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-red-500 text-lg">🔴</span>
                             <span className="font-semibold text-gray-300 text-sm">
-                              Зона #{notification.area_id}
+                              Зона #{notification.camera_id}
                             </span>
                             {!notification.isRead && (
                               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
@@ -113,7 +115,6 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                           </div>
                           <p className="text-gray-400 text-sm mb-2">{notification.info}</p>
                           <div className="flex gap-3 text-xs text-gray-500">
-                            <span>📷 Камера #{notification.camera_id}</span>
                             <span>🕐 {formatTime(notification.timestamp)}</span>
                           </div>
                         </div>

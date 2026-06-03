@@ -58,7 +58,8 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
   const fetchFloors = async (): Promise<void> => {
     try {
       setLoading(true);
-      const response = await api.get<Floor[]>('/floors');
+      const response = await api.get<Floor[]>('/floors/');
+      console.log('📦 Загружены этажи:', response.data);
       setFloors(response.data);
       
       const unique: UniqueObject[] = [];
@@ -88,6 +89,8 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
+    console.log('📁 Выбран файл:', file.name, 'тип:', file.type, 'размер:', file.size);
+    
     if (!file.name.endsWith('.svg')) {
       setError('Пожалуйста, выберите SVG файл');
       return;
@@ -96,6 +99,8 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     const reader = new FileReader();
     reader.onload = (e: ProgressEvent<FileReader>) => {
       const svgContent = e.target?.result as string;
+      console.log('📄 Содержимое SVG, первые 100 символов:', svgContent.substring(0, 100));
+      console.log('📄 Начинается с <svg:', svgContent.trim().startsWith('<svg'));
       setSelectedFile({
         name: file.name,
         content: svgContent
@@ -103,6 +108,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       setError('');
     };
     reader.onerror = () => {
+      console.error('Ошибка чтения файла');
       setError('Ошибка при чтении файла');
     };
     reader.readAsText(file);
@@ -116,6 +122,12 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
 
   const handleAddObject = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
+    
+    console.log('🚀 Начало создания объекта');
+    console.log('📝 Название объекта:', newObjectName.trim());
+    console.log('📁 Выбран файл:', selectedFile?.name);
+    console.log('📄 Содержимое файла есть:', !!selectedFile?.content);
+    
     if (!newObjectName.trim()) {
       setError('Введите название объекта');
       return;
@@ -129,19 +141,39 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     setIsSubmitting(true);
     setError('');
     
+    const requestData = {
+      number: 1,
+      place: newObjectName.trim(),
+      map: selectedFile.content
+    };
+    
+    console.log('📤 Отправка запроса:', requestData);
+    
     try {
-      await api.post<Floor>('/floors', {
-        number: 1,
-        place: newObjectName.trim(),
-        map: selectedFile.content
-      });
+      const response = await api.post<Floor>('/floors/', requestData);
+      console.log('✅ Ответ сервера:', response.data);
       
       await fetchFloors();
       setShowAddForm(false);
       setNewObjectName('');
       resetForm();
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка при добавлении объекта');
+      console.error('❌ Ошибка создания объекта:', err);
+      console.error('❌ Статус ошибки:', err.response?.status);
+      console.error('❌ Данные ошибки:', err.response?.data);
+      
+      let errorMsg = 'Ошибка при добавлении объекта';
+      if (err.response?.data?.detail) {
+        if (typeof err.response.data.detail === 'string') {
+          errorMsg = err.response.data.detail;
+        } else if (Array.isArray(err.response.data.detail)) {
+          errorMsg = err.response.data.detail.map((e: any) => e.msg || e.message).join(', ');
+        }
+      } else if (err.message) {
+        errorMsg = err.message;
+      }
+      
+      setError(errorMsg);
     } finally {
       setIsSubmitting(false);
     }
@@ -160,6 +192,10 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       setError(err.response?.data?.detail || 'Ошибка при удалении объекта');
       setTimeout(() => setError(''), 3000);
     }
+  };
+
+  const handleRenameObject = async (oldPlace: string, newPlace: string): Promise<void> => {
+    await fetchFloors();
   };
 
   const handleObjectClick = (place: string): void => {
@@ -207,7 +243,10 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                 <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-6 mb-8 shadow-xl">
                   <h2 className="text-xl font-semibold text-gray-200 mb-4">Новый объект</h2>
                   {error && (
-                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl mb-4 text-sm">
+                    <div className="bg-red-500/10 border
+
+
+border-red-500/20 text-red-400 p-3 rounded-xl mb-4 text-sm">
                       {error}
                     </div>
                   )}
@@ -267,6 +306,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                         onCardClick={handleObjectClick}
                         onAddFloor={handleAddFloor}
                         onDeleteObject={handleDeleteObject}
+                        onRenameObject={handleRenameObject}
                         isAdmin={isAdmin}
                       />
                     ))}

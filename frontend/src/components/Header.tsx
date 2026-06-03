@@ -85,7 +85,10 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
             {isAdmin && (
               <button
                 onClick={() => setShowAdminPanel(true)}
-                className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-all duration-200 group"
+                className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl
+
+
+transition-all duration-200 group"
                 title="Управление операторами"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -36,7 +36,6 @@ export const useSvgRenderer = (
   isAdmin: boolean = true
 ) => {
   
-  const svgCacheRef = useRef<Map<string, string>>(new Map());
   const lastDetectionsRef = useRef<string>('');
   
   const getZoneOfCamera = useCallback((cameraId: number): Zone | undefined => 
@@ -48,14 +47,19 @@ export const useSvgRenderer = (
     }
     
     if (isSelectingZone) {
-      if (isSelected) return { fill: 'rgba(0, 255, 255, 0.4)', stroke: '#00FFFF', width: '4' };
-      if (isInZone && !editingZone) return { fill: 'rgba(128, 128, 128, 0.2)', stroke: '#888888', width: '2' };
-      return { fill: 'rgba(255, 255, 0, 0.2)', stroke: '#FFAA00', width: '2' };
+      if (isSelected) {
+        return { fill: 'rgba(0, 255, 255, 0.6)', stroke: '#00FFFF', width: '4' };
+      }
+      if (isInZone && !editingZone) {
+        return { fill: 'rgba(128, 128, 128, 0.3)', stroke: '#888888', width: '2' };
+      }
+      return { fill: 'rgba(255, 255, 0, 0.3)', stroke: '#FFAA00', width: '2' };
+    }
+    
+    if (cameraZone?.disabled) {
+      return { fill: 'rgba(34, 139, 34, 0.5)', stroke: '#228B22', width: '3' };
     }
     if (isInZone) {
-      if (cameraZone?.disabled) {
-        return { fill: 'rgba(34, 139, 34, 0.4)', stroke: '#228B22', width: '3' };
-      }
       return { 
         fill: cameraZone?.type === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)', 
         stroke: cameraZone?.type === 'red' ? '#EF4444' : '#22C55E', 
@@ -81,17 +85,19 @@ export const useSvgRenderer = (
     let cameraColor = '#FF4444';
     let borderColor = '#FFFFFF';
     let additionalClass = '';
-    let cursorStyle = isAdmin ? 'cursor:pointer' : 'cursor:default';
+    let cursorStyle = (isAdmin || !isSelectingZone) ? 'cursor:pointer' : 'cursor:default';
     let hoverEffect = '';
     
     if (isSelectingZone) {
       additionalClass = 'selectable-camera';
       if (isSelected) {
         cameraColor = '#00FFFF';
+        borderColor = '#FFFFFF';
       } else {
-        cameraColor = '#333333';
+        cameraColor = '#666666';
+        borderColor = '#CCCCCC';
       }
-    } else if (isAdmin) {
+    } else {
       additionalClass = 'clickable-camera';
       hoverEffect = `
         <style>
@@ -109,8 +115,12 @@ export const useSvgRenderer = (
     
     return `
       ${hoverEffect}
-      <g transform="translate(${x - 16}, ${y - 16})" 
-         class="camera-icon-${camera.id} ${additionalClass}" 
+      <g transform="translate(${x - 16}, ${y - 16})"
+cam.id - Данный веб-сайт выставлен на продажу! - cam Ресурсы и информация.
+cam.id
+
+
+class="camera-icon-${camera.id} ${additionalClass}" 
          data-camera-id="${camera.id}" 
          style="${cursorStyle}">
         <rect x="2" y="8" width="28" height="16" rx="3" fill="${cameraColor}" stroke="${borderColor}" stroke-width="1.5" />
@@ -197,18 +207,14 @@ export const useSvgRenderer = (
     return pointsHtml;
   }, []);
   
-  const getBaseSvg = useCallback((svgContent: string): string => {
-    const cacheKey = `${svgContent}_${cameras.length}_${zones.map(z => `${z.id}_${z.type}_${z.disabled}`).join('_')}_${isSelectingZone}_${blinkingAreaId}`;
-    
-    if (svgCacheRef.current.has(cacheKey)) {
-      return svgCacheRef.current.get(cacheKey)!;
-    }
-    
+  const getSvgWithAllElements = useCallback((svgContent: string): string => {
     if (!svgContent) return '';
     
     let modifiedSvg = normalizeSvg(svgContent);
     const configuredCameras = cameras.filter(c => c.is_configured === true);
+    const viewBox = getViewBox(modifiedSvg);
     
+    // Рисуем фоны зон
     zones.forEach(zone => {
       const zoneHtml = renderZoneBackground(zone);
       if (zoneHtml) {
@@ -216,8 +222,11 @@ export const useSvgRenderer = (
       }
     });
     
+    // Рисуем зоны видимости камер
     configuredCameras.forEach((camera) => {
-      const cameraZone = getZoneOfCamera(camera.id);
+
+
+const cameraZone = getZoneOfCamera(camera.id);
       const isInZone = !!cameraZone;
       const isSelected = isSelectingZone && selectedCameras.has(camera.id);
       const style = getZoneStyle(camera, isSelected, isInZone, cameraZone || null);
@@ -236,36 +245,18 @@ export const useSvgRenderer = (
       }
     });
     
-    svgCacheRef.current.set(cacheKey, modifiedSvg);
-    
-    if (svgCacheRef.current.size > 10) {
-      const firstKey = svgCacheRef.current.keys().next().value;
-      svgCacheRef.current.delete(firstKey);
+    // Рисуем точки детекций
+    const detections = getDetectionsByFloor(currentFloorId);
+    const pointsHtml = renderDetectionPoints(detections, viewBox);
+    if (pointsHtml) {
+      const svgEndIndex = modifiedSvg.lastIndexOf('</svg>');
+      if (svgEndIndex !== -1) {
+        modifiedSvg = modifiedSvg.slice(0, svgEndIndex) + pointsHtml + modifiedSvg.slice(svgEndIndex);
+      }
     }
     
     return modifiedSvg;
-  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, blinkingAreaId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground]);
-  
-  const getSvgWithAllElements = useCallback((svgContent: string): string => {
-    const baseSvg = getBaseSvg(svgContent);
-    if (!baseSvg) return '';
-    
-    const detections = getDetectionsByFloor(currentFloorId);
-    const detectionsKey = JSON.stringify(detections.map(d => `${d.x.toFixed(1)},${d.y.toFixed(1)}`));
-    
-    if (lastDetectionsRef.current === detectionsKey) {
-      return baseSvg;
-    }
-    
-    lastDetectionsRef.current = detectionsKey;
-    const viewBox = getViewBox(baseSvg);
-    const pointsHtml = renderDetectionPoints(detections, viewBox);
-    
-    const svgEndIndex = baseSvg.lastIndexOf('</svg>');
-    if (svgEndIndex === -1) return baseSvg;
-    
-    return baseSvg.slice(0, svgEndIndex) + pointsHtml + baseSvg.slice(svgEndIndex);
-  }, [getBaseSvg, getDetectionsByFloor, currentFloorId, renderDetectionPoints]);
+  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, blinkingAreaId, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoints]);
   
   return { getSvgWithAllElements };
 };

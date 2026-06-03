@@ -15,6 +15,7 @@ interface ObjectCardProps {
   onCardClick: (place: string) => void;
   onAddFloor: (place: string, floorsCount: number) => void;
   onDeleteObject: (place: string) => void;
+  onRenameObject: (oldPlace: string, newPlace: string) => void;
   isAdmin: boolean;
 }
 
@@ -25,18 +26,63 @@ const ObjectCard = ({
   onCardClick, 
   onAddFloor, 
   onDeleteObject,
+  onRenameObject,
   isAdmin
 }: ObjectCardProps) => {
   const [showFloorForm, setShowFloorForm] = useState(false);
+  const [showRenameForm, setShowRenameForm] = useState(false);
+  const [newPlaceName, setNewPlaceName] = useState(place);
   const [newFloorNumber, setNewFloorNumber] = useState<number>(floorsCount + 1);
   const [selectedFile, setSelectedFile] = useState<{ name: string; content: string } | null>(null);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [renaming, setRenaming] = useState(false);
 
   const handleDeleteObject = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (window.confirm(`Удалить объект "${place}" и все его этажи? Это действие нельзя отменить.`)) {
       onDeleteObject(place);
+    }
+  };
+
+  const handleRenameClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowRenameForm(true);
+    setNewPlaceName(place);
+  };
+
+  const handleRenameSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!newPlaceName.trim()) {
+      setError('Введите новое название');
+      return;
+    }
+    
+    if (newPlaceName.trim() === place) {
+      setShowRenameForm(false);
+      return;
+    }
+    
+    setRenaming(true);
+    setError('');
+    
+    try {
+      // Обновляем все этажи объекта
+      const floorsToUpdate = floors || [];
+      for (const floor of floorsToUpdate) {
+        await api.patch(`/floors/${floor.id}`, {
+          place: newPlaceName.trim()
+        });
+      }
+      
+      onRenameObject(place, newPlaceName.trim());
+      setShowRenameForm(false);
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Ошибка при переименовании');
+    } finally {
+      setRenaming(false);
     }
   };
 
@@ -102,7 +148,9 @@ const ObjectCard = ({
       });
       
       setShowFloorForm(false);
-      setSelectedFile(null);
+
+
+setSelectedFile(null);
       setNewFloorNumber(floorsCount + 1);
       onAddFloor(place, floorsCount);
     } catch (err: any) {
@@ -114,6 +162,7 @@ const ObjectCard = ({
 
   const cancelForm = () => {
     setShowFloorForm(false);
+    setShowRenameForm(false);
     setSelectedFile(null);
     setError('');
   };
@@ -124,15 +173,26 @@ const ObjectCard = ({
         <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
         
         {isAdmin && (
-          <button
-            onClick={handleDeleteObject}
-            className="absolute top-2 right-2 p-2 bg-red-500/20 text-red-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/30 z-10"
-            title="Удалить объект"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-          </button>
+          <div className="absolute top-2 right-2 flex gap-1">
+            <button
+              onClick={handleRenameClick}
+              className="p-2 bg-blue-500/20 text-blue-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-blue-500/30 z-10"
+              title="Переименовать объект"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+              </svg>
+            </button>
+            <button
+              onClick={handleDeleteObject}
+              className="p-2 bg-red-500/20 text-red-400 rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500/30 z-10"
+              title="Удалить объект"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
         )}
         
         <div 
@@ -161,6 +221,61 @@ const ObjectCard = ({
           )}
         </div>
       </div>
+
+      {showRenameForm && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-gray-800 rounded-2xl shadow-2xl w-full max-w-md border border-gray-600" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center p-6 border-b border-gray-700">
+              <h2 className="text-xl font-bold text-gray-200">Переименовать объект</h2>
+              <button onClick={cancelForm} className="text-gray-400 hover:text-gray-300">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor"
+
+
+viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            
+            <form onSubmit={handleRenameSubmit} className="p-6">
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl mb-4 text-sm">
+                  {error}
+                </div>
+              )}
+              
+              <div className="mb-4">
+                <label className="block text-gray-300 font-medium mb-2">Новое название объекта</label>
+                <input
+                  type="text"
+                  value={newPlaceName}
+                  onChange={(e) => setNewPlaceName(e.target.value)}
+                  className="w-full px-4 py-2 bg-gray-900/50 border border-gray-600 rounded-xl text-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Введите новое название"
+                  autoFocus
+                />
+              </div>
+              
+              <div className="flex gap-3 mt-6">
+                <button
+                  type="submit"
+                  disabled={renaming}
+                  className="flex-1 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-5 py-2 rounded-xl font-medium disabled:opacity-50 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg shadow-blue-500/25"
+                >
+                  {renaming ? 'Сохранение...' : 'Сохранить'}
+                </button>
+                <button
+                  type="button"
+                  onClick={cancelForm}
+                  className="flex-1 bg-gray-700 text-gray-300 px-5 py-2 rounded-xl font-medium hover:bg-gray-600 transition-colors"
+                >
+                  Отмена
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {showFloorForm && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={(e) => e.stopPropagation()}>
@@ -198,7 +313,9 @@ const ObjectCard = ({
                 <input
                   type="file"
                   accept=".svg"
-                  onChange={handleFileSelect}
+
+
+onChange={handleFileSelect}
                   className="w-full text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-500/20 file:text-blue-400 hover:file:bg-blue-500/30"
                   required
                 />
@@ -215,7 +332,7 @@ const ObjectCard = ({
                   />
                 </div>
               )}
-              
+            
               <div className="flex gap-3 mt-6">
                 <button
                   type="submit"

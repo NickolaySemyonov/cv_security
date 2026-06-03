@@ -1,4 +1,3 @@
-// frontend/src/components/SvgPreview.tsx
 import { useState, useEffect } from 'react';
 
 interface SvgPreviewProps {

@@ -162,3 +162,18 @@ class ActionLogsResponse(BaseModel):
     page: int
     limit: int
     pages: int
+
+class IncidentResponse(BaseModel):
+    id: int
+    time: datetime
+    area_id: int
+    area_name: str
+    camera_id: int
+    info: str
+    floor_id: int
+    floor_number: int
+    floor_map: str
+    zone_polygons: List[List[List[float]]]  # Список полигонов (каждый полигон - список вершин)
+    
+    class Config:
+        from_attributes = True

@@ -28,6 +28,8 @@ interface ZoneManagementPanelProps {
   onSave: () => void;
   onOpenZonesList: () => void;
   isAdmin: boolean;
+  showAlert?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
+  onZonesUpdate?: () => void;
 }
 
 export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
@@ -40,7 +42,9 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   onCancel,
   onSave,
   onOpenZonesList,
-  isAdmin
+  isAdmin,
+  showAlert,
+  onZonesUpdate
 }) => {
   return (
     <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">
@@ -100,7 +104,9 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
               {savingZone ? 'Сохранение...' : (editingZone ? 'Обновить зону' : 'Сохранить зону')}
             </button>
           </div>
-        )}
+
+
+)}
       </div>
 
       {isSelectingZone && (

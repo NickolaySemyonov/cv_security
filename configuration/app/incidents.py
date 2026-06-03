@@ -13,27 +13,51 @@ async def get_incidents(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
-    # Получаем уведомления с типом 'red' (нарушения)
     notifications = db.query(Notification).filter(Notification.type == 'red').order_by(Notification.id.desc()).limit(100).all()
     
     incidents = []
     for notif in notifications:
         detection = db.query(Detection).filter(Detection.id == notif.detection_id).first()
-        if detection:
-            camera = db.query(Camera).filter(Camera.id == detection.camera_id).first()
-            area = db.query(Area).filter(Area.id == notif.area_id).first() if notif.area_id else None
-            floor = db.query(Floor).filter(Floor.id == (area.floor_id if area else camera.floor_id)).first()
-            
-            incidents.append({
-                "id": notif.id,
-                "time": notif.time,
-                "area_id": notif.area_id or 0,
-                "area_name": f"Зона {notif.area_id}" if notif.area_id else "Неизвестная зона",
-                "camera_id": detection.camera_id,
-                "info": notif.text,
-                "floor_id": floor.id if floor else 0,
-                "floor_map": floor.map if floor else "",
-                "zone_vertices": area.cameras[0].visible_zone['vertices'] if area and area.cameras else []
-            })
+        if not detection:
+            continue
+        
+        camera = db.query(Camera).filter(Camera.id == detection.camera_id).first()
+        if not camera:
+            continue
+        
+        area = db.query(Area).filter(Area.id == camera.area_id).first()
+        
+        floor = None
+        floor_number = None
+        if area:
+            floor = db.query(Floor).filter(Floor.id == area.floor_id).first()
+            if floor:
+                floor_number = floor.number
+        else:
+            floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
+            if floor:
+                floor_number = floor.number
+        
+        # Собираем все полигоны всех камер в зоне
+        zone_polygons = []
+        if area:
+            for cam in area.cameras:
+                if cam.visible_zone and cam.visible_zone.get('vertices'):
+                    vertices = cam.visible_zone.get('vertices', [])
+                    if len(vertices) >= 4:
+                        zone_polygons.append(vertices)
+        
+        incidents.append({
+            "id": notif.id,
+            "time": detection.time,
+            "area_id": area.id if area else 0,
+            "area_name": f"Зона {area.id}" if area else "Неизвестная зона",
+            "camera_id": detection.camera_id,
+            "info": notif.text_,
+            "floor_id": floor.id if floor else 0,
+            "floor_number": floor_number if floor_number else 0,
+            "floor_map": floor.map if floor else "",
+            "zone_polygons": zone_polygons
+        })
     
     return incidents

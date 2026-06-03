@@ -319,32 +319,32 @@ const HomographyCalibration = ({
   };
 
   const handleSave = async () => {
-    if (videoPoints.length !== 4 || mapPoints.length !== 4) {
-      setError('Необходимо отметить 4 точки на видео и 4 точки на схеме');
-      return;
-    }
-    
-    setIsLoading(true);
-    
-    const homographyData = {
-      src_points: videoPoints.map(p => [p.x, p.y]),
-      dst_points: mapPoints.map(p => [p.x, p.y])
-    };
-    
-    try {
-      await api.patch(`/cameras/${cameraId}/homography`, {
-        points_of_homography: homographyData,
-        stream_url: manualStreamUrl,
-        frame_shape: { width: frameWidth, height: frameHeight },
-        is_configured: true
-      });
-      onSave();
-    } catch (err) {
-      setError('Ошибка при сохранении');
-    } finally {
-      setIsLoading(false);
-    }
+  if (videoPoints.length !== 4 || mapPoints.length !== 4) {
+    setError('Необходимо отметить 4 точки на видео и 4 точки на схеме');
+    return;
+  }
+  
+  setIsLoading(true);
+  
+  const homographyData = {
+    src_points: videoPoints.map(p => [p.x, p.y]),
+    dst_points: mapPoints.map(p => [p.x, p.y])
   };
+  
+  try {
+    await api.patch(`/cameras/${cameraId}/homography`, {
+      points_of_homography: homographyData,
+      stream_url: manualStreamUrl,  // URL из формы
+      frame_shape: { width: frameWidth, height: frameHeight },
+      is_configured: true
+    });
+    onSave();
+  } catch (err) {
+    setError('Ошибка при сохранении');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   if (step === 'settings') {
     return (

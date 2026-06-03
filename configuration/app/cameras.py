@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from typing import List
 from database import get_db
-from models import Camera, Floor, User
+from models import Camera, Floor, User, Detection, Notification, Schedule, Area
 from schemas import CameraCreate, CameraResponse, CameraUpdate
 from security import get_current_user
 from crud.logs import action_logger
@@ -108,7 +108,7 @@ async def update_camera_homography(
     floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
     
     camera.points_of_homography = data.get("points_of_homography")
-    camera.video_stream = data.get("video_stream")
+    camera.video_stream = data.get("stream_url")
     camera.frame_shape = data.get("frame_shape")
     camera.is_configured = data.get("is_configured", True)
     
@@ -118,7 +118,7 @@ async def update_camera_homography(
         db,
         user_id=current_user.id,
         title="НАСТРОЙКА ГОМОГРАФИИ",
-        text=f"Настроена гомография для камеры #{camera_id} на этаже {floor.number if floor else '?'} у объекта '{floor.place if floor else '?'}'"
+        text=f"Настроена гомография для камеры#{camera_id} на этаже {floor.number if floor else '?'} у объекта '{floor.place if floor else '?'}'"
     )
     
     return {"message": "Гомография сохранена"}
@@ -134,9 +134,35 @@ async def delete_camera(
         raise HTTPException(404, "Камера не найдена")
     
     floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
+    area_id = camera.area_id
     
+    # Сначала удаляем связанные детекции и уведомления
+    detections = db.query(Detection).filter(Detection.camera_id == camera_id).all()
+    for detection in detections:
+        db.query(Notification).filter(Notification.detection_id == detection.id).delete()
+        db.delete(detection)
+    
+    # Удаляем камеру
     db.delete(camera)
     db.commit()
+    
+    # Проверяем, остались ли камеры в зоне
+    if area_id:
+        remaining_cameras = db.query(Camera).filter(Camera.area_id == area_id).count()
+        if remaining_cameras == 0:
+            # Удаляем расписание зоны
+            db.query(Schedule).filter(Schedule.area_id == area_id).delete()
+            # Удаляем зону
+            area = db.query(Area).filter(Area.id == area_id).first()
+            if area:
+                db.delete(area)
+                db.commit()
+                action_logger.log(
+                    db,
+                    user_id=current_user.id,
+                    title="АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ЗОНЫ",
+                    text=f"Зона #{area_id} автоматически удалена, так как в ней не осталось камер"
+                )
     
     action_logger.log(
         db,

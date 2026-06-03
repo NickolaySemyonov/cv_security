@@ -1,7 +1,6 @@
-# backend/app/crud/area.py
 from sqlalchemy.orm import Session
 from typing import List, Optional
-from models import Area, Camera
+from models import Area, Camera, Schedule
 from schemas import AreaCreate, AreaUpdate
 
 class CRUDArea:
@@ -9,7 +8,7 @@ class CRUDArea:
     def create(db: Session, area_data: AreaCreate) -> Area:
         area = Area(
             type=area_data.type,
-            disabled=(area_data.type == "green"),  # green = охрана выключена
+            disabled=(area_data.type == "green"),
             floor_id=area_data.floor_id
         )
         db.add(area)
@@ -40,15 +39,12 @@ class CRUDArea:
         
         if area_data.type:
             area.type = area_data.type
-            # При смене типа сбрасываем ручное отключение
             if area.disabled:
                 area.disabled = False
         
         if area_data.camera_ids is not None:
-            # Отвязываем все камеры от этой зоны
             db.query(Camera).filter(Camera.area_id == area_id).update({Camera.area_id: None})
             
-            # Привязываем новые камеры
             cameras = db.query(Camera).filter(Camera.id.in_(area_data.camera_ids)).all()
             for camera in cameras:
                 camera.area_id = area_id
@@ -63,9 +59,13 @@ class CRUDArea:
         if not area:
             return False
         
-        # Отвязываем камеры
+        # 1. Сначала удаляем расписание зоны
+        db.query(Schedule).filter(Schedule.area_id == area_id).delete()
+        
+        # 2. Отвязываем камеры от зоны
         db.query(Camera).filter(Camera.area_id == area_id).update({Camera.area_id: None})
         
+        # 3. Удаляем зону
         db.delete(area)
         db.commit()
         return True

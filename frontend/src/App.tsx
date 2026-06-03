@@ -11,6 +11,7 @@ import IncidentsList from './components/IncidentsList';
 interface User {
   id: number;
   login: string;
+  role: string;
 }
 
 function App() {

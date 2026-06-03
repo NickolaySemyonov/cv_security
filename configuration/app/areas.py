@@ -11,7 +11,6 @@ from crud.logs import action_logger
 
 router = APIRouter(prefix="/areas", tags=["areas"])
 
-
 @router.get("/floor/{floor_id}", response_model=List[AreaResponse])
 async def get_areas_by_floor(
     floor_id: int,
@@ -37,7 +36,6 @@ async def get_areas_by_floor(
     
     return result
 
-
 @router.get("/{area_id}", response_model=AreaResponse)
 async def get_area(
     area_id: int,
@@ -57,7 +55,6 @@ async def get_area(
         floor_id=area.floor_id,
         cameras=[CameraResponse.model_validate(c) for c in cameras]
     )
-
 
 @router.post("/", response_model=AreaResponse)
 async def create_area(
@@ -97,7 +94,6 @@ async def create_area(
         cameras=[CameraResponse.model_validate(c) for c in cameras]
     )
 
-
 @router.patch("/{area_id}", response_model=AreaResponse)
 async def update_area(
     area_id: int,
@@ -124,8 +120,9 @@ async def update_area(
         disabled=area.disabled,
         floor_id=area.floor_id,
         cameras=[CameraResponse.model_validate(c) for c in cameras]
-    )
 
+
+)
 
 @router.delete("/{area_id}")
 async def delete_area(
@@ -139,7 +136,15 @@ async def delete_area(
     
     floor = db.query(Floor).filter(Floor.id == area.floor_id).first()
     
-    area_crud.delete(db, area_id)
+    # 1. Сначала удаляем расписание зоны
+    db.query(Schedule).filter(Schedule.area_id == area_id).delete()
+    
+    # 2. Отвязываем камеры от зоны
+    db.query(Camera).filter(Camera.area_id == area_id).update({Camera.area_id: None})
+    
+    # 3. Удаляем зону
+    db.delete(area)
+    db.commit()
     
     action_logger.log(
         db,
@@ -149,7 +154,6 @@ async def delete_area(
     )
     
     return {"message": "Зона удалена"}
-
 
 @router.post("/{area_id}/toggle-disabled")
 async def toggle_area_disabled(
@@ -163,7 +167,6 @@ async def toggle_area_disabled(
     
     area.disabled = not area.disabled
     
-    # Если охрана включается, устанавливаем тип по расписанию
     if not area.disabled:
         now = datetime.now()
         days_en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -190,18 +193,12 @@ async def toggle_area_disabled(
             start_total = start.hour * 60 + start.minute
             end_total = end.hour * 60 + end.minute
             
-            if start_total <= end_total:
-                if start_total <= current_total <= end_total:
-                    is_active = True
-                    break
-            else:
-                if current_total >= start_total or current_total <= end_total:
-                    is_active = True
-                    break
+            if start_total <= current_total <= end_total:
+                is_active = True
+                break
         
         area.type = "red" if is_active else "green"
     else:
-        # При отключении охраны ставим тёмно-зелёный цвет
         area.type = "green"
     
     db.commit()
@@ -222,13 +219,83 @@ async def toggle_area_disabled(
         "area_id": area_id
     }
 
-
 @router.post("/update-colors-by-schedule")
 async def update_zone_colors_by_schedule(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_operator_or_admin)
 ):
-    """Принудительно обновить цвета всех зон по текущему расписанию"""
+    now = datetime.now()
+    
+    days_en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    current_day = days_en[now.weekday()]
+    current_hour = now.hour
+    current_minute = now.minute
+    current_total = current_hour * 60 + current_minute
+    
+    print(f"\n{'='*60}")
+    print(f"[{now.strftime('%H:%M:%S')}] ПРОВЕРКА РАСПИСАНИЯ")
+    print(f"{'='*60}")
+    
+    areas = db.query(Area).all()
+    updated_count = 0
+    
+    for area in areas:
+        if area.disabled:
+            print(f"Зона #{area.id}: ⛔ РУЧНОЕ ОТКЛЮЧЕНИЕ - пропускаем")
+            continue
+        
+        schedules = db.query(Schedule).filter(
+            Schedule.area_id == area.id,
+            Schedule.day == current_day
+        ).all()
+        
+        is_active = False
+        for schedule in schedules:
+            start = schedule.start_time
+            end = schedule.end_time
+            
+            if hasattr(start, 'tzinfo') and start.tzinfo is not None:
+                start = start.replace(tzinfo=None)
+            if hasattr(end, 'tzinfo') and end.tzinfo is not None:
+                end = end.replace(tzinfo=None)
+            
+            start_total = start.hour * 60 + start.minute
+            end_total = end.hour * 60 + end.minute
+            
+            if start_total <= current_total <= end_total:
+                is_active = True
+                break
+        
+        target_type = "red" if is_active else "green"
+        
+        if area.type != target_type:
+            old_type = area.type
+            area.type = target_type
+            updated_count += 1
+            print(f"Зона #{area.id}: {old_type} -> {target_type}")
+            
+            action_logger.log(
+                db,
+                user_id=current_user.id,
+                title="АВТОМАТИЧЕСКАЯ СМЕНА ЦВЕТА ЗОНЫ",
+                text=f"Зона #{area.id} изменена с {old_type} на {target_type} по расписанию"
+            )
+    
+    if updated_count > 0:
+        db.commit()
+        print(f"\n✅ ОБНОВЛЕНО {updated_count} ЗОН")
+    
+    return {
+        "message": f"Обновлено {updated_count} зон",
+        "updated_count": updated_count,
+        "current_time": f"{current_hour:02d}:{current_minute:02d}"
+    }
+
+@router.post("/update-all-by-schedule")
+async def update_all_zones_by_schedule(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_operator_or_admin)
+):
     now = datetime.now()
     
     days_en = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
@@ -300,7 +367,9 @@ async def update_zone_colors_by_schedule(
         print("\n✅ НЕТ ЗОН ДЛЯ ОБНОВЛЕНИЯ")
     
     return {
-        "message": f"Обновлено {updated_count} зон",
+
+
+"message": f"Обновлено {updated_count} зон",
         "updated_count": updated_count,
         "current_time": f"{current_hour:02d}:{current_minute:02d}",
         "current_day": current_day,
