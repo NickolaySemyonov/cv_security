@@ -10,6 +10,7 @@ from logs import router as logs_router
 from areas import router as areas_router
 from schedules import router as schedules_router
 from users import router as users_router
+from incidents import router as incidents_router
 from security import get_current_user
 from models import User
 import os
@@ -19,7 +20,6 @@ from database import SessionLocal
 from models import Area, Schedule
 from crud.logs import action_logger
 from dotenv import load_dotenv
-
 load_dotenv()
 
 app = FastAPI(title="CV Security API")
@@ -37,6 +37,7 @@ app.include_router(auth_router)
 app.include_router(floors_router)
 app.include_router(cameras_router)
 app.include_router(videos_router)
+app.include_router(incidents_router)
 app.include_router(areas_router)
 app.include_router(logs_router)
 app.include_router(schedules_router)

@@ -7,6 +7,7 @@ import { ZoneManagementPanel } from './ZoneManagementPanel';
 import ScheduleManager from './ScheduleManager';
 import ZonesListModal from './ZonesListModal';
 import HomographyCalibration from './HomographyCalibration';
+import CameraStreamModal from './CameraStreamModal';
 import { useSvgRenderer } from '../hooks/useSvgRenderer';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAlert } from './CustomAlert';
@@ -32,6 +33,7 @@ interface Camera {
   is_active: boolean;
   is_configured?: boolean;
   rotation?: number;
+  video_stream?: string;
 }
 
 interface Zone {
@@ -77,8 +79,10 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const [showZonesModal, setShowZonesModal] = useState(false);
   const [showHomographyCalibration, setShowHomographyCalibration] = useState(false);
   const [selectedCameraForCalibration, setSelectedCameraForCalibration] = useState<Camera | null>(null);
+  const [selectedStreamCamera, setSelectedStreamCamera] = useState<{ id: number; url: string } | null>(null);
 
   const isAdmin = user?.role === 'admin';
+  const isOperator = user?.role === 'operator';
 
   const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useWebSocket();
   const { getSvgWithAllElements } = useSvgRenderer(
@@ -399,11 +403,15 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   };
 
   const handleCameraClick = (cameraId: number) => {
-    if (!isAdmin) return;
     const camera = cameras.find(c => c.id === cameraId);
-    if (camera) {
+    if (!camera) return;
+    
+    if (isAdmin) {
       setSelectedCameraForCalibration(camera);
       setShowHomographyCalibration(true);
+    } else if (isOperator) {
+      const streamUrl = camera.video_stream || `http://localhost:8888/camera_${cameraId}/index.m3u8`;
+      setSelectedStreamCamera({ id: cameraId, url: streamUrl });
     }
   };
 
@@ -412,7 +420,7 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
     const selectableElement = target.closest('.selectable-zone, .selectable-camera');
     const cameraElement = target.closest('.clickable-camera');
     
-    if (cameraElement && !isSelectingZone && isAdmin) {
+    if (cameraElement && !isSelectingZone && (isAdmin || isOperator)) {
       const cameraId = parseInt(cameraElement.getAttribute('data-camera-id') || '0');
       if (cameraId) {
         handleCameraClick(cameraId);
@@ -455,7 +463,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
 
   const svgHtml = useMemo(() => {
     if (!currentFloor?.map) return '';
-    console.log('🔄 Перерисовка SVG, мигающая зона:', blinkingAreaId);
     return getSvgWithAllElements(normalizeSvg(currentFloor.map));
   }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingAreaId, forceRender]);
 
@@ -588,7 +595,6 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
         onLogout={onLogout} 
         title={decodedPlace} 
         onAreaBlink={(areaId) => {
-          console.log('📢 FloorPage - получен onAreaBlink с areaId:', areaId);
           setBlinkingAreaId(areaId);
         }} 
       />
@@ -765,6 +771,14 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
           }}
           onCancel={() => setShowHomographyCalibration(false)}
           isReCalibration={selectedCameraForCalibration.is_configured || false}
+        />
+      )}
+
+      {selectedStreamCamera && (
+        <CameraStreamModal
+          cameraId={selectedStreamCamera.id}
+          streamUrl={selectedStreamCamera.url}
+          onClose={() => setSelectedStreamCamera(null)}
         />
       )}
     </div>

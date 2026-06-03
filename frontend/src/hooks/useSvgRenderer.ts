@@ -198,7 +198,7 @@ export const useSvgRenderer = (
   }, []);
   
   const getBaseSvg = useCallback((svgContent: string): string => {
-    const cacheKey = `${svgContent}_${cameras.length}_${zones.length}_${isSelectingZone}_${blinkingAreaId}`;
+    const cacheKey = `${svgContent}_${cameras.length}_${zones.map(z => `${z.id}_${z.type}_${z.disabled}`).join('_')}_${isSelectingZone}_${blinkingAreaId}`;
     
     if (svgCacheRef.current.has(cacheKey)) {
       return svgCacheRef.current.get(cacheKey)!;
@@ -251,19 +251,15 @@ export const useSvgRenderer = (
     if (!baseSvg) return '';
     
     const detections = getDetectionsByFloor(currentFloorId);
-    const detectionsKey = JSON.stringify(detections.map(d => `${d.x},${d.y}`));
+    const detectionsKey = JSON.stringify(detections.map(d => `${d.x.toFixed(1)},${d.y.toFixed(1)}`));
     
-    if (lastDetectionsRef.current === detectionsKey && baseSvg.includes('<!--detections-placeholder-->')) {
+    if (lastDetectionsRef.current === detectionsKey) {
       return baseSvg;
     }
     
     lastDetectionsRef.current = detectionsKey;
     const viewBox = getViewBox(baseSvg);
     const pointsHtml = renderDetectionPoints(detections, viewBox);
-    
-    if (baseSvg.includes('<!--detections-placeholder-->')) {
-      return baseSvg.replace('<!--detections-placeholder-->', pointsHtml);
-    }
     
     const svgEndIndex = baseSvg.lastIndexOf('</svg>');
     if (svgEndIndex === -1) return baseSvg;

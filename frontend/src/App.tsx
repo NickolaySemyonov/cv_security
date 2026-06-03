@@ -6,6 +6,7 @@ import ObjectsList from './components/ObjectsList';
 import FloorPage from './components/FloorPage';
 import FloorSetup from './components/FloorSetup';
 import FloorCameras from './components/FloorCameras';
+import IncidentsList from './components/IncidentsList';
 
 interface User {
   id: number;
@@ -71,6 +72,14 @@ function App() {
           element={
             <PrivateRoute>
               <FloorCameras user={user} onLogout={handleLogout} />
+            </PrivateRoute>
+          } 
+        />
+        <Route 
+          path="/incidents" 
+          element={
+            <PrivateRoute>
+              <IncidentsList user={user} />
             </PrivateRoute>
           } 
         />

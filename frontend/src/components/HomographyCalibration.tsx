@@ -1,15 +1,10 @@
 import { useState, useRef, useEffect } from 'react';
 import api from '../config/axios';
+import Hls from 'hls.js';
 
 interface Point {
   x: number;
   y: number;
-}
-
-interface VideoFile {
-  name: string;
-  url: string;
-  size_mb: number;
 }
 
 interface HomographyCalibrationProps {
@@ -20,6 +15,7 @@ interface HomographyCalibrationProps {
   onSave: () => void;
   onCancel: () => void;
   isReCalibration?: boolean;
+  streamUrl?: string;
 }
 
 const HomographyCalibration = ({ 
@@ -29,47 +25,110 @@ const HomographyCalibration = ({
   svgContent,
   onSave, 
   onCancel,
-  isReCalibration = false
+  isReCalibration = false,
+  streamUrl = `http://localhost:8888/camera_${cameraId}/index.m3u8`
 }: HomographyCalibrationProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dstCanvasRef = useRef<HTMLCanvasElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
   
   const [step, setStep] = useState<'settings' | 'video' | 'save'>('settings');
-  const [videos, setVideos] = useState<VideoFile[]>([]);
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [videoPoints, setVideoPoints] = useState<Point[]>([]);
   const [mapPoints, setMapPoints] = useState<Point[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [loadingVideos, setLoadingVideos] = useState(true);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [isStreamPlaying, setIsStreamPlaying] = useState(false);
   
   const [frameWidth, setFrameWidth] = useState<number>(640);
   const [frameHeight, setFrameHeight] = useState<number>(480);
+  const [manualStreamUrl, setManualStreamUrl] = useState<string>(streamUrl);
 
   useEffect(() => {
-    if (step === 'settings') {
-      fetchVideos();
-    }
-  }, [step]);
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+      }
+    };
+  }, []);
 
-  const fetchVideos = async () => {
-    try {
-      setLoadingVideos(true);
-      const response = await api.get('/videos/list');
-      setVideos(response.data.videos || []);
-    } catch (error) {
-      console.error('Ошибка загрузки видео:', error);
-      setError('Не удалось загрузить список видео');
-    } finally {
-      setLoadingVideos(false);
+  const initHLSStream = () => {
+    const video = videoRef.current;
+    if (!video) return;
+
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    video.pause();
+    video.src = '';
+    setVideoLoaded(false);
+    setIsStreamPlaying(false);
+
+    if (!manualStreamUrl) {
+      setError('URL стрима не указан');
+      return;
+    }
+
+    if (Hls.isSupported()) {
+      const hls = new Hls({
+        debug: false,
+        enableWorker: true,
+        manifestLoadingTimeOut: 10000,
+        manifestLoadingMaxRetry: 3,
+        levelLoadingTimeOut: 10000,
+        levelLoadingMaxRetry: 3,
+      });
+      
+      hlsRef.current = hls;
+      hls.loadSource(manualStreamUrl);
+      hls.attachMedia(video);
+      
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        setVideoLoaded(true);
+        video.play().catch(e => {
+          console.error('Автовоспроизведение заблокировано:', e);
+          setError('Нажмите play для начала воспроизведения');
+        });
+      });
+      
+      hls.on(Hls.Events.ERROR, (event, data) => {
+        if (data.fatal) {
+          switch (data.type) {
+            case Hls.ErrorTypes.NETWORK_ERROR:
+              setError('Ошибка сети при загрузке стрима');
+              break;
+            case Hls.ErrorTypes.MEDIA_ERROR:
+              setError('Ошибка медиа-потока');
+              hls.recoverMediaError();
+              break;
+            default:
+              setError('Не удалось загрузить видеопоток');
+              break;
+          }
+        }
+      });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = manualStreamUrl;
+      video.addEventListener('loadedmetadata', () => {
+        setVideoLoaded(true);
+        video.play().catch(e => {
+          console.error('Автовоспроизведение заблокировано:', e);
+        });
+      });
+      video.addEventListener('error', () => {
+        setError('Не удалось загрузить видеопоток');
+      });
+    } else {
+      setError('Ваш браузер не поддерживает HLS');
     }
   };
 
   const handleNextFromSettings = () => {
-    if (!selectedVideo) {
-      setError('Выберите видеофайл');
+    if (!manualStreamUrl) {
+      setError('Введите URL видеопотока');
       return;
     }
     if (frameWidth <= 0 || frameHeight <= 0) {
@@ -81,23 +140,25 @@ const HomographyCalibration = ({
     setVideoPoints([]);
     setMapPoints([]);
     setVideoLoaded(false);
+    setIsStreamPlaying(false);
   };
 
   useEffect(() => {
-    if (step === 'video' && videoRef.current && selectedVideo) {
-      videoRef.current.src = `http://localhost:8000${selectedVideo}`;
-      videoRef.current.load();
+    if (step === 'video' && videoRef.current) {
+      initHLSStream();
     }
-  }, [step, selectedVideo]);
+  }, [step, manualStreamUrl]);
 
   const onVideoLoaded = () => {
     setVideoLoaded(true);
     setTimeout(() => drawVideoPoints(), 100);
   };
 
-  const onVideoError = () => {
-    setError('Не удалось загрузить видео');
-    setVideoLoaded(false);
+  const onVideoPlay = () => {
+    setIsStreamPlaying(true);
+    if (videoRef.current) {
+      onVideoLoaded();
+    }
   };
 
   const getVideoCoords = (e: React.MouseEvent<HTMLVideoElement>): Point | null => {
@@ -273,7 +334,7 @@ const HomographyCalibration = ({
     try {
       await api.patch(`/cameras/${cameraId}/homography`, {
         points_of_homography: homographyData,
-        video_stream: selectedVideo,
+        stream_url: manualStreamUrl,
         frame_shape: { width: frameWidth, height: frameHeight },
         is_configured: true
       });
@@ -296,6 +357,20 @@ const HomographyCalibration = ({
           
           <div className="space-y-4">
             <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">URL HLS видеопотока</label>
+              <input
+                type="text"
+                value={manualStreamUrl}
+                onChange={(e) => setManualStreamUrl(e.target.value)}
+                placeholder="http://localhost:8888/camera_X/index.m3u8"
+                className="w-full px-3 py-2 border rounded-lg"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                Пример: http://localhost:8888/camera_{cameraId}/index.m3u8
+              </p>
+            </div>
+
+            <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Разрешение камеры</label>
               <div className="flex gap-2">
                 <input
@@ -315,30 +390,20 @@ const HomographyCalibration = ({
                 />
               </div>
             </div>
-            
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Видеофайл для калибровки</label>
-              {loadingVideos ? (
-                <div className="text-center py-4 text-gray-500">Загрузка видео...</div>
-              ) : videos.length === 0 ? (
-                <div className="text-center py-4 text-gray-500">
-                  Нет видео файлов в папке storage/videos/
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-auto border rounded-lg p-2">
-                  {videos.map((video) => (
-                    <div
-                      key={video.name}
-                      onClick={() => setSelectedVideo(video.url)}
-                      className={`border rounded-lg p-2 cursor-pointer transition-all text-center ${
-                        selectedVideo === video.url ? 'border-blue-500 bg-blue-50' : 'hover:border-gray-400'
-                      }`}
-                    >
-                      <div className="text-sm truncate">{video.name}</div>
-                    </div>
-                  ))}
-                </div>
-              )}
+          </div>
+          
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
+            <div className="font-semibold mb-2">📖 Инструкция по калибровке:</div>
+            <ol className="list-decimal list-inside space-y-1">
+              <li>Введите URL HLS видеопотока (например, http://localhost:8888/camera_X/index.m3u8)</li>
+              <li>Укажите разрешение камеры (ширина и высота кадра)</li>
+              <li>Нажмите "Далее"</li>
+              <li>На видео отметьте 4 точки (углы зоны наблюдения) в порядке: левый верхний → правый верхний → правый нижний → левый нижний</li>
+              <li>На схеме справа отметьте те же 4 точки в том же порядке</li>
+              <li>Нажмите "Сохранить калибровку"</li>
+            </ol>
+            <div className="mt-2 text-xs text-blue-600">
+              💡 Совет: Выбирайте неподвижные объекты на видео (углы стен, двери, колонны) для точной калибровки
             </div>
           </div>
           
@@ -361,7 +426,7 @@ const HomographyCalibration = ({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl p-6 max-w-5xl w-full max-h-[90vh] overflow-auto">
         <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold">Калибровка гомографии</h2>
+          <h2 className="text-xl font-bold">Калибровка гомографии - Камера {cameraId}</h2>
           <button onClick={() => setStep('settings')} className="text-gray-500 hover:text-gray-700">
             ← Назад к настройкам
           </button>
@@ -378,10 +443,11 @@ const HomographyCalibration = ({
                 ref={videoRef}
                 autoPlay
                 playsInline
+                muted
                 className="w-full h-auto cursor-crosshair"
                 onClick={handleVideoClick}
-                onLoadedData={onVideoLoaded}
-                onError={onVideoError}
+                onPlay={onVideoPlay}
+                onError={() => setError('Ошибка воспроизведения видеопотока')}
                 style={{ maxWidth: '100%', height: 'auto', maxHeight: '400px' }}
               />
               <canvas
@@ -389,8 +455,10 @@ const HomographyCalibration = ({
                 className="absolute top-0 left-0 w-full h-full pointer-events-none"
               />
             </div>
-            {!videoLoaded && selectedVideo && (
-              <p className="text-sm text-blue-500 mt-2">Загрузка видео...</p>
+            {!videoLoaded && (
+              <p className="text-sm text-blue-500 mt-2">
+                Загрузка видеопотока... {!isStreamPlaying && '(нажмите play если автоматическое воспроизведение заблокировано)'}
+              </p>
             )}
             {videoPoints.length > 0 && (
               <div className="flex gap-2 mt-2">
@@ -442,9 +510,13 @@ const HomographyCalibration = ({
         {error && <div className="mt-4 p-2 bg-red-100 text-red-700 rounded-lg text-sm">{error}</div>}
         
         <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
-          💡 Инструкция:<br />
-          <strong>Шаг 1:</strong> Выберите видеофайл и укажите разрешение камеры<br />
-          <strong>Шаг 2:</strong> Отметьте 4 точки на видео и 4 точки на схеме справа в одинаковом порядке
+          💡 Инструкция:
+          <br />
+          <strong>Шаг 1:</strong> Укажите URL HLS видеопотока и разрешение камеры
+          <br />
+          <strong>Шаг 2:</strong> Дождитесь загрузки видеопотока
+          <br />
+          <strong>Шаг 3:</strong> Отметьте 4 точки на видео и 4 точки на схеме справа в одинаковом порядке (углы зоны наблюдения)
         </div>
       </div>
     </div>

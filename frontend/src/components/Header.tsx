@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import LogsModal from './LogsModal';
 import AdminPanel from './AdminPanel';
 import NotificationPanel from './NotificationPanel';
@@ -19,6 +19,7 @@ interface HeaderProps {
 
 const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showLogs, setShowLogs] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
 
@@ -26,7 +27,12 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
     navigate('/objects');
   };
 
+  const handleIncidentsClick = () => {
+    navigate('/incidents');
+  };
+
   const isAdmin = user?.role === 'admin';
+  const isIncidentsPage = location.pathname === '/incidents';
 
   return (
     <>
@@ -47,6 +53,20 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
           </div>
           
           <div className="flex items-center gap-2">
+            <button
+              onClick={handleIncidentsClick}
+              className={`relative px-3 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 ${
+                isIncidentsPage 
+                  ? 'bg-red-500/20 text-red-400 border border-red-500/30' 
+                  : 'text-gray-400 hover:text-white hover:bg-gray-800'
+              }`}
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="hidden sm:inline">Нарушения</span>
+            </button>
+
             <NotificationPanel onAreaBlink={onAreaBlink} />
 
             {isAdmin && (
