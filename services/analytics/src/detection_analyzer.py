@@ -21,7 +21,7 @@ class DetectionAnalyzer:
             return None
 
         area = self._config.get_area(detection.area_id)
-        if not area or area.disabled or area.type != "red":
+        if not area or area.disabled or area.type != "red" or len(detection.translated_points) == 0:
             return None
 
         latest_timestamp = self._latest_timestamps.get(detection.camera_id)
