@@ -1,0 +1,3 @@
+CREATE DATABASE kontur;
+\c kontur;
+CREATE EXTENSION IF NOT EXISTS pgcrypto;

@@ -1,0 +1,20 @@
+rtspTransports: [tcp]
+
+rtspAddress: :8554
+webrtcAddress: :8889
+webrtcAdditionalHosts: [localhost]
+hlsAddress: :8888
+
+paths:
+  camera_1:
+    source: rtsp://USER:PASSWORD@CAMERA_IP:PORT/live
+    rtspTransport: tcp 
+  camera_2:
+    source: rtsp://USER:PASSWORD@CAMERA_IP:PORT/live
+    rtspTransport: tcp 
+  camera_3:
+    source: rtsp://USER:PASSWORD@CAMERA_IP:PORT/live
+    rtspTransport: tcp
+  camera_4:
+    source: rtsp://USER:PASSWORD@CAMERA_IP:PORT/live
+    rtspTransport: tcp

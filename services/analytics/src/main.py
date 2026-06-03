@@ -44,7 +44,7 @@ app = FastStream(broker)
 
 @app.on_startup
 async def init_context(context: ContextRepo):
-    analyzer = DetectionAnalyzer(result_ttl=300, settings=settings)
+    analyzer = DetectionAnalyzer(settings=settings)
     config_watcher = ConfigWatcher(
         callback=analyzer.set_config,
         poll_interval=5.0,

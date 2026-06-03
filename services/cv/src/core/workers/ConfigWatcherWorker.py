@@ -35,22 +35,25 @@ class ConfigWatcherWorker(BaseWorker):
 
     def _poll_config(self):
         camera_config = CameraConfig()
+        src_prefix = f"rtsp://{self.settings.media_mtx_host}:{self.settings.media_mtx_port}/camera"
         ids_tuple = tuple(self.ctx.camera_ids)
+
         with psycopg2.connect(**self.db_params) as conn:
             conn.autocommit = True
             with conn.cursor() as cursor:
                 try:
                     print(f"polling camera config at {datetime.now()}")
-                    cursor.execute("SELECT id, points_of_homography, area_id, rotation, video_stream FROM camera WHERE id in %s", (ids_tuple,))
+                    cursor.execute("SELECT id, points_of_homography, area_id, rotation FROM camera WHERE id in %s",
+                                   (ids_tuple,))
                     rows = cursor.fetchall()
                     for row in rows:
                         camera_data = CameraData(
                             id=row[0],
-                            source='./test-media/crowd.mp4',
+                            source=f"{src_prefix}_{row[0]}" if not self.settings.use_test_source else self.settings.test_source,
                             homography_points_cam=row[1]["src_points"],
                             homography_points_map=row[1]["dst_points"],
-                            rotation=row[3],  # mock rotation
-                            area_id=row[2]
+                            area_id=row[2],
+                            rotation=row[3]
                         )
                         camera_config.add_camera(camera_data)
                 except Exception as e:

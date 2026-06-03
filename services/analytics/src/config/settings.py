@@ -1,7 +1,12 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=False
+    )
+
+    # Broker settings
     rabbitmq_host: str
     rabbitmq_port: int = 5672
     rabbitmq_user: str
@@ -14,4 +19,5 @@ class Settings(BaseSettings):
     postgres_user: str
     postgres_password: str
 
-    model_config = {"env_file": ".env"}
+    # App settings
+    result_ttl: int = 30

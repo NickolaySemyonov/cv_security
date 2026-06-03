@@ -11,9 +11,8 @@ from src.models import DetectionMessage, DetectionAlert
 
 
 class DetectionAnalyzer:
-    def __init__(self, settings: Settings, result_ttl: float):
+    def __init__(self, settings: Settings):
         self.settings = settings
-        self.result_ttl = result_ttl
         self._config: Optional[AreaConfig] = None
         self._latest_timestamps: dict[int, float] = {}
 
@@ -26,7 +25,7 @@ class DetectionAnalyzer:
             return None
 
         latest_timestamp = self._latest_timestamps.get(detection.camera_id)
-        if latest_timestamp and (detection.timestamp < latest_timestamp + self.result_ttl):
+        if latest_timestamp and (detection.timestamp < latest_timestamp + self.settings.result_ttl):
             return None
         else:
             self._latest_timestamps[detection.camera_id] = detection.timestamp

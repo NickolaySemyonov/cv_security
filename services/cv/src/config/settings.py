@@ -1,7 +1,11 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=False
+    )
+
     # Broker settings
     rabbitmq_host: str
     rabbitmq_port: int = 5672
@@ -15,8 +19,13 @@ class Settings(BaseSettings):
     postgres_user: str
     postgres_password: str
 
+    # MediaMtx settings
+    media_mtx_host: str
+    media_mtx_port: int
+
     # App settings
     camera_ids: list[int]
     model_path: str = "../yolo11n.pt"
 
-    model_config = {"env_file": ".env"}
+    use_test_source: bool = False
+    test_source: str = './test-media/crowd.mp4'
