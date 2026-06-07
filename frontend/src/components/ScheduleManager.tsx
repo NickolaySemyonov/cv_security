@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import api from '../config/axios';
+import ConfirmModal from './ConfirmModal';
+import { useConfirm } from '../hooks/useConfirm';
 
 interface Schedule {
   id: number;
@@ -29,6 +31,7 @@ interface ScheduleManagerProps {
   onZoneTypeChange?: () => void;
   onBackToList?: () => void;
   isAdmin: boolean;
+  showAlert?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
 }
 
 const days = [
@@ -77,7 +80,8 @@ const ScheduleManager = ({
   onScheduleChange,
   onZoneTypeChange,
   onBackToList,
-  isAdmin
+  isAdmin,
+  showAlert
 }: ScheduleManagerProps) => {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,6 +94,8 @@ const ScheduleManager = ({
   const [isDisabled, setIsDisabled] = useState(areaDisabled);
   const [togglingProtection, setTogglingProtection] = useState(false);
   const [currentZoneType, setCurrentZoneType] = useState(areaType);
+  const [miniMapKey, setMiniMapKey] = useState(0);
+  const { confirm, isOpen: confirmOpen, options, handleConfirm, handleCancel } = useConfirm();
 
   useEffect(() => {
     fetchSchedules();
@@ -99,6 +105,10 @@ const ScheduleManager = ({
     setIsDisabled(areaDisabled);
     setCurrentZoneType(areaType);
   }, [areaDisabled, areaType]);
+
+  useEffect(() => {
+    setMiniMapKey(prev => prev + 1);
+  }, [isDisabled, currentZoneType]);
 
   const fetchSchedules = async () => {
     try {
@@ -114,7 +124,15 @@ const ScheduleManager = ({
 
   const updateZoneColors = async () => {
     try {
+      // Просто вызываем обновление цветов на сервере
       await api.post('/areas/update-colors-by-schedule');
+      // Обновляем локальное состояние миникарты
+      setMiniMapKey(prev => prev + 1);
+      // Уведомляем родителя об изменении
+      if (onZoneTypeChange) {
+        onZoneTypeChange();
+      }
+      // Не пытаемся получить зоны, так как это вызывает 404
     } catch (error) {
       console.error('Ошибка обновления цветов:', error);
     }
@@ -141,18 +159,29 @@ const ScheduleManager = ({
       }
       
       await updateZoneColors();
+      setMiniMapKey(prev => prev + 1);
       
     } catch (error) {
       console.error('Ошибка переключения охраны:', error);
       setIsDisabled(areaDisabled);
       setCurrentZoneType(areaType);
-      alert('Ошибка при переключении охраны зоны');
+      showAlert?.('Ошибка при переключении охраны зоны', 'error');
     } finally {
       setTimeout(() => setTogglingProtection(false), 500);
     }
   };
 
   const handleAddSchedule = async () => {
+    if (!isAdmin) {
+      showAlert?.('Только администратор может добавлять интервалы', 'warning');
+      return;
+    }
+    
+    if (!isDisabled) {
+      showAlert?.('Сначала отключите охрану зоны вручную, чтобы изменить расписание', 'warning');
+      return;
+    }
+    
     if (startTime >= endTime) {
       alert('⏰ Время начала должно быть меньше времени окончания');
       return;
@@ -173,6 +202,7 @@ const ScheduleManager = ({
       setShowAddForm(false);
       setStartTime('09:00');
       setEndTime('18:00');
+      setMiniMapKey(prev => prev + 1);
     } catch (error: any) {
       console.error('Ошибка добавления:', error);
       const errorMsg = error.response?.data?.detail || 'Ошибка при добавлении интервала';
@@ -187,13 +217,33 @@ const ScheduleManager = ({
   };
 
   const handleDeleteSchedule = async (scheduleId: number) => {
-    if (!window.confirm('Удалить этот интервал?')) return;
+    if (!isAdmin) {
+      showAlert?.('Только администратор может удалять интервалы', 'warning');
+      return;
+    }
+    
+    if (!isDisabled) {
+      showAlert?.('Сначала отключите охрану зоны вручную, чтобы изменить расписание', 'warning');
+      return;
+    }
+    
+    const scheduleToDelete = schedules.find(s => s.id === scheduleId);
+    const confirmed = await confirm({
+      title: 'Удаление интервала',
+      message: `Удалить интервал ${scheduleToDelete?.start_time || ''} - ${scheduleToDelete?.end_time || ''}?`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      confirmVariant: 'danger'
+    });
+    
+    if (!confirmed) return;
     
     try {
       await api.delete(`/schedules/${scheduleId}`);
       await updateZoneColors();
       await fetchSchedules();
       onScheduleChange();
+      setMiniMapKey(prev => prev + 1);
     } catch (error) {
       console.error('Ошибка удаления:', error);
       alert('Ошибка при удалении интервала');
@@ -201,6 +251,16 @@ const ScheduleManager = ({
   };
 
   const handleUpdateSchedule = async () => {
+    if (!isAdmin) {
+      showAlert?.('Только администратор может редактировать интервалы', 'warning');
+      return;
+    }
+    
+    if (!isDisabled) {
+      showAlert?.('Сначала отключите охрану зоны вручную, чтобы изменить расписание', 'warning');
+      return;
+    }
+    
     if (!editingSchedule) return;
     
     if (startTime >= endTime) {
@@ -221,6 +281,7 @@ const ScheduleManager = ({
       onScheduleChange();
       setEditingSchedule(null);
       setShowAddForm(false);
+      setMiniMapKey(prev => prev + 1);
     } catch (error: any) {
       console.error('Ошибка обновления:', error);
       const errorMsg = error.response?.data?.detail || 'Ошибка при обновлении интервала';
@@ -235,6 +296,16 @@ const ScheduleManager = ({
   };
 
   const editSchedule = (schedule: Schedule) => {
+    if (!isAdmin) {
+      showAlert?.('Только администратор может редактировать интервалы', 'warning');
+      return;
+    }
+    
+    if (!isDisabled) {
+      showAlert?.('Сначала отключите охрану зоны вручную, чтобы изменить расписание', 'warning');
+      return;
+    }
+    
     setEditingSchedule(schedule);
     setSelectedDay(schedule.day);
     setStartTime(schedule.start_time);
@@ -250,15 +321,41 @@ const ScheduleManager = ({
     return time.substring(0, 5);
   };
 
-  const getMiniMapWithZone = (): string => {
+  const getZoneColor = useCallback(() => {
+    if (isDisabled) {
+      return {
+        fill: 'rgba(128, 128, 128, 0.35)',
+        stroke: '#888888',
+        cameraFill: '#888888',
+        cameraStroke: '#CCCCCC'
+      };
+    }
+    if (currentZoneType === 'red') {
+      return {
+        fill: 'rgba(239, 68, 68, 0.35)',
+        stroke: '#EF4444',
+        cameraFill: '#EF4444',
+        cameraStroke: '#FCA5A5'
+      };
+    }
+    return {
+      fill: 'rgba(34, 197, 94, 0.35)',
+      stroke: '#22C55E',
+      cameraFill: '#22C55E',
+      cameraStroke: '#86EFAC'
+    };
+  }, [isDisabled, currentZoneType]);
+
+  const getMiniMapWithZone = useCallback((): string => {
     if (!floorMap) return '';
     
     let modifiedSvg = normalizeSvgForMiniMap(floorMap);
+    const zoneColor = getZoneColor();
     
     zoneCameras.forEach((camera) => {
       if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-        const polygon = `<polygon points="${points}" fill="rgba(255, 215, 0, 0.25)" stroke="#FFD700" stroke-width="2.5" stroke-dasharray="6,4" />`;
+        const polygon = `<polygon points="${points}" fill="${zoneColor.fill}" stroke="${zoneColor.stroke}" stroke-width="3" stroke-dasharray="6,4" />`;
         modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
       }
       
@@ -267,9 +364,9 @@ const ScheduleManager = ({
         const y = camera.position.y;
         const cameraIcon = `
           <g transform="translate(${x - 10}, ${y - 10})">
-            <circle cx="10" cy="10" r="10" fill="#FFD700" stroke="#B8860B" stroke-width="1.5" />
-            <circle cx="10" cy="10" r="5" fill="#FFF8DC" />
-            <circle cx="10" cy="10" r="2.5" fill="#FFD700" />
+            <circle cx="10" cy="10" r="10" fill="${zoneColor.cameraFill}" stroke="${zoneColor.cameraStroke}" stroke-width="1.5" />
+            <circle cx="10" cy="10" r="5" fill="#fff" opacity="0.8" />
+            <circle cx="10" cy="10" r="2.5" fill="${zoneColor.cameraFill}" />
           </g>
         `;
         modifiedSvg = modifiedSvg.replace('</svg>', cameraIcon + '</svg>');
@@ -277,25 +374,32 @@ const ScheduleManager = ({
     });
     
     return modifiedSvg;
-  };
+  }, [floorMap, zoneCameras, getZoneColor]);
+
+  const canEditSchedule = isAdmin && isDisabled;
 
   return (
-    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn">
+    <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fadeIn" style={{ paddingTop: '8vh' }}>
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={options?.title || ''}
+        message={options?.message || ''}
+        confirmText={options?.confirmText}
+        cancelText={options?.cancelText}
+        confirmVariant={options?.confirmVariant || 'danger'}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[85vh] flex flex-col animate-scaleIn overflow-hidden">
         <div className="flex justify-between items-center p-5 border-b border-gray-100">
           <div className="flex items-center gap-3">
-            {onBackToList && (
-              <button
-                onClick={onBackToList}
-                className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
-                title="Вернуться к списку зон"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-              </button>
-            )}
-            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl flex items-center justify-center">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              isDisabled 
+                ? 'bg-gradient-to-br from-gray-500 to-gray-600' 
+                : (currentZoneType === 'red' 
+                  ? 'bg-gradient-to-br from-red-500 to-red-600' 
+                  : 'bg-gradient-to-br from-green-500 to-green-600')
+            }`}>
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
@@ -331,7 +435,13 @@ const ScheduleManager = ({
         <div className="flex flex-1 overflow-hidden">
           <div className="w-2/5 p-5 border-r border-gray-100 bg-gray-50/50">
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-8 h-8 bg-gradient-to-br from-amber-500 to-yellow-500 rounded-lg flex items-center justify-center">
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
+                isDisabled 
+                  ? 'bg-gradient-to-br from-gray-500 to-gray-600' 
+                  : (currentZoneType === 'red' 
+                    ? 'bg-gradient-to-br from-red-500 to-red-600' 
+                    : 'bg-gradient-to-br from-green-500 to-green-600')
+              }`}>
                 <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
                 </svg>
@@ -340,23 +450,11 @@ const ScheduleManager = ({
             </div>
             <div className="bg-white rounded-xl border border-gray-200 p-3 flex items-center justify-center shadow-sm">
               <div
+                key={miniMapKey}
                 dangerouslySetInnerHTML={{ __html: getMiniMapWithZone() }}
                 style={{ maxWidth: '100%', maxHeight: '280px', width: 'auto', height: 'auto' }}
               />
             </div>
-            <div className="mt-3 flex items-center justify-center gap-3 text-xs">
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-amber-400"></div>
-                <span className="text-gray-500">Выделенная зона</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                <span className="text-gray-500">Камеры зоны</span>
-              </div>
-            </div>
-            <p className="text-xs text-gray-400 text-center mt-3">
-              🟡 Зона выделена золотым цветом для настройки расписания
-            </p>
           </div>
 
           <div className="w-3/5 flex flex-col">
@@ -389,23 +487,20 @@ const ScheduleManager = ({
                     </span>
                   </div>
                 </div>
-                <div className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded-lg">
-                  💡 Ручное управление
-                </div>
               </div>
               {isDisabled && (
                 <div className="mt-3 text-xs text-gray-500 bg-gray-100 p-2 rounded-lg text-center">
                   🌿 Охрана отключена вручную. Расписание не действует.
                 </div>
               )}
-              {!isDisabled && (
+              {!isDisabled && currentZoneType === 'red' && (
                 <div className="mt-3 text-xs text-gray-500 bg-blue-50 p-2 rounded-lg text-center">
                   ⏰ Охрана работает по расписанию
                 </div>
               )}
             </div>
 
-            {!isDisabled && isAdmin && (
+            {canEditSchedule && (
               <div className="p-4 border-b border-gray-100">
                 {!showAddForm ? (
                   <button
@@ -481,107 +576,67 @@ const ScheduleManager = ({
               </div>
             )}
 
-            {!isDisabled && (
-              <div className="flex-1 overflow-auto p-4">
-                {loading ? (
-                  <div className="flex justify-center items-center h-32">
-                    <div className="text-gray-400 text-sm">Загрузка...</div>
-                  </div>
-                ) : schedules.length === 0 ? (
-                  <div className="text-center text-gray-400 py-8">
-                    <div className="text-5xl mb-2">⏰</div>
-                    <p className="text-sm">Нет интервалов</p>
-                    {isAdmin && <p className="text-xs mt-1">Нажмите "Добавить интервал"</p>}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {days.map(day => {
-                      const daySchedules = getSchedulesForDay(day.value);
-                      if (daySchedules.length === 0) return null;
-                      
-                      return (
-                        <div key={day.value} className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                          <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-3 py-2 text-sm font-medium text-gray-700 border-b border-gray-100">
-                            {day.label}
-                          </div>
-                          <div className="divide-y divide-gray-50">
-                            {daySchedules.map(schedule => {
-                              return (
-                                <div key={schedule.id} className="px-3 py-2 flex justify-between items-center hover:bg-gray-50 transition-all">
-                                  <div className="flex items-center gap-2">
-                                    <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
-                                      <span className="text-xs text-blue-600">🕐</span>
-                                    </div>
-                                    <span className="font-mono text-sm text-gray-700">
-                                      {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
-                                    </span>
-                                  </div>
-                                  {isAdmin && (
-                                    <div className="flex gap-1">
-                                      <button
-                                        onClick={() => editSchedule(schedule)}
-                                        className="w-7 h-7 flex items-center justify-center text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 rounded-lg transition-all"
-                                        title="Редактировать"
-                                      >
-                                        ✏️
-                                      </button>
-                                      <button
-                                        onClick={() => handleDeleteSchedule(schedule.id)}
-                                        className="w-7 h-7 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
-                                        title="Удалить"
-                                      >
-                                        🗑️
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {isDisabled && (
-              <div className="flex-1 flex items-center justify-center p-8">
-                <div className="text-center">
-                  <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <span className="text-3xl">🌿</span>
-                  </div>
-                  <p className="text-gray-500 text-sm">Охрана отключена вручную</p>
-                  <p className="text-gray-400 text-xs mt-1">Расписание неактивно</p>
-                  <p className="text-gray-400 text-xs">Включите охрану чтобы настроить расписание</p>
+            <div className="flex-1 overflow-auto p-4">
+              {loading ? (
+                <div className="flex justify-center items-center h-32">
+                  <div className="text-gray-400 text-sm">Загрузка...</div>
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div className="p-3 border-t border-gray-100 bg-gray-50">
-          <div className="flex items-center justify-center gap-4 text-xs">
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-              <span className="text-gray-500">🟢 Охрана выключена</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-              <span className="text-gray-500">🔴 Охрана включена</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-              <span className="text-gray-500">⏰ По расписанию</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-              <span className="text-gray-500">🌿 Ручное отключение</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full bg-amber-400"></div>
-              <span className="text-gray-500">🟡 Зона выделена для настройки</span>
+              ) : schedules.length === 0 ? (
+                <div className="text-center text-gray-400 py-8">
+                  <div className="text-5xl mb-2">⏰</div>
+                  <p className="text-sm">Нет интервалов</p>
+                  {canEditSchedule && <p className="text-xs mt-1">Нажмите "Добавить интервал"</p>}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {days.map(day => {
+                    const daySchedules = getSchedulesForDay(day.value);
+                    if (daySchedules.length === 0) return null;
+                    
+                    return (
+                      <div key={day.value} className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                        <div className="bg-gradient-to-r from-gray-100 to-gray-50 px-3 py-2 text-sm font-medium text-gray-700 border-b border-gray-100">
+                          {day.label}
+                        </div>
+                        <div className="divide-y divide-gray-50">
+                          {daySchedules.map(schedule => {
+                            return (
+                              <div key={schedule.id} className="px-3 py-2 flex justify-between items-center hover:bg-gray-50 transition-all">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-7 h-7 bg-blue-100 rounded-lg flex items-center justify-center">
+                                    <span className="text-xs text-blue-600">🕐</span>
+                                  </div>
+                                  <span className="font-mono text-sm text-gray-700">
+                                    {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+                                  </span>
+                                </div>
+                                {canEditSchedule && (
+                                  <div className="flex gap-1">
+                                    <button
+                                      onClick={() => editSchedule(schedule)}
+                                      className="w-7 h-7 flex items-center justify-center text-yellow-600 hover:text-yellow-700 hover:bg-yellow-50 rounded-lg transition-all"
+                                      title="Редактировать"
+                                    >
+                                      ✏️
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteSchedule(schedule.id)}
+                                      className="w-7 h-7 flex items-center justify-center text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-all"
+                                      title="Удалить"
+                                    >
+                                      🗑️
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
         </div>

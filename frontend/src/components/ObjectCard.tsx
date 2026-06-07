@@ -1,5 +1,8 @@
 import { useState } from 'react';
 import api from '../config/axios';
+import ConfirmModal from './ConfirmModal';
+import { useConfirm } from '../hooks/useConfirm';
+import { useAlert } from './CustomAlert';
 
 interface Floor {
   id: number;
@@ -37,10 +40,21 @@ const ObjectCard = ({
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [renaming, setRenaming] = useState(false);
+  const { confirm, isOpen: confirmOpen, options, handleConfirm, handleCancel } = useConfirm();
+  const { showAlert, AlertComponent } = useAlert();
 
-  const handleDeleteObject = (e: React.MouseEvent) => {
+  const handleDeleteObject = async (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (window.confirm(`Удалить объект "${place}" и все его этажи? Это действие нельзя отменить.`)) {
+    
+    const confirmed = await confirm({
+      title: 'Удаление объекта',
+      message: `Удалить объект "${place}" и все его этажи? Это действие нельзя отменить.`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      confirmVariant: 'danger'
+    });
+    
+    if (confirmed) {
       onDeleteObject(place);
     }
   };
@@ -69,7 +83,6 @@ const ObjectCard = ({
     setError('');
     
     try {
-      // Обновляем все этажи объекта
       const floorsToUpdate = floors || [];
       for (const floor of floorsToUpdate) {
         await api.patch(`/floors/${floor.id}`, {
@@ -79,8 +92,10 @@ const ObjectCard = ({
       
       onRenameObject(place, newPlaceName.trim());
       setShowRenameForm(false);
+      showAlert(`Объект переименован в "${newPlaceName.trim()}"`, 'success');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка при переименовании');
+      showAlert(err.response?.data?.detail || 'Ошибка при переименовании', 'error');
     } finally {
       setRenaming(false);
     }
@@ -148,13 +163,13 @@ const ObjectCard = ({
       });
       
       setShowFloorForm(false);
-
-
-setSelectedFile(null);
+      setSelectedFile(null);
       setNewFloorNumber(floorsCount + 1);
       onAddFloor(place, floorsCount);
+      showAlert(`Этаж ${newFloorNumber} успешно добавлен`, 'success');
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Ошибка при добавлении этажа');
+      showAlert(err.response?.data?.detail || 'Ошибка при добавлении этажа', 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -169,6 +184,17 @@ setSelectedFile(null);
 
   return (
     <>
+      {AlertComponent}
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={options?.title || ''}
+        message={options?.message || ''}
+        confirmText={options?.confirmText}
+        cancelText={options?.cancelText}
+        confirmVariant={options?.confirmVariant || 'danger'}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
       <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 overflow-hidden transition-all duration-200 hover:shadow-2xl hover:shadow-blue-500/10 hover:border-gray-500 relative group shadow-xl">
         <div className="h-2 bg-gradient-to-r from-blue-500 to-purple-500"></div>
         
@@ -228,10 +254,7 @@ setSelectedFile(null);
             <div className="flex justify-between items-center p-6 border-b border-gray-700">
               <h2 className="text-xl font-bold text-gray-200">Переименовать объект</h2>
               <button onClick={cancelForm} className="text-gray-400 hover:text-gray-300">
-                <svg className="w-6 h-6" fill="none" stroke="currentColor"
-
-
-viewBox="0 0 24 24">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -313,9 +336,7 @@ viewBox="0 0 24 24">
                 <input
                   type="file"
                   accept=".svg"
-
-
-onChange={handleFileSelect}
+                  onChange={handleFileSelect}
                   className="w-full text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-sm file:font-semibold file:bg-blue-500/20 file:text-blue-400 hover:file:bg-blue-500/30"
                   required
                 />

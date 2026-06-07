@@ -6,6 +6,9 @@ import FileInput from './FileInput';
 import ObjectCard from './ObjectCard';
 import Header from './Header';
 import Footer from './Footer';
+import ConfirmModal from './ConfirmModal';
+import { useConfirm } from '../hooks/useConfirm';
+import { useAlert } from './CustomAlert';
 
 interface User {
   id: number;
@@ -39,6 +42,8 @@ interface ObjectsListProps {
 const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { showAlert, AlertComponent } = useAlert();
+  const { confirm, isOpen: confirmOpen, options, handleConfirm, handleCancel } = useConfirm();
   
   const [floors, setFloors] = useState<Floor[]>([]);
   const [uniqueObjects, setUniqueObjects] = useState<UniqueObject[]>([]);
@@ -89,8 +94,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     const file = event.target.files?.[0];
     if (!file) return;
     
-    console.log('📁 Выбран файл:', file.name, 'тип:', file.type, 'размер:', file.size);
-    
     if (!file.name.endsWith('.svg')) {
       setError('Пожалуйста, выберите SVG файл');
       return;
@@ -99,8 +102,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
     const reader = new FileReader();
     reader.onload = (e: ProgressEvent<FileReader>) => {
       const svgContent = e.target?.result as string;
-      console.log('📄 Содержимое SVG, первые 100 символов:', svgContent.substring(0, 100));
-      console.log('📄 Начинается с <svg:', svgContent.trim().startsWith('<svg'));
       setSelectedFile({
         name: file.name,
         content: svgContent
@@ -108,7 +109,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       setError('');
     };
     reader.onerror = () => {
-      console.error('Ошибка чтения файла');
       setError('Ошибка при чтении файла');
     };
     reader.readAsText(file);
@@ -122,11 +122,6 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
 
   const handleAddObject = async (e: FormEvent<HTMLFormElement>): Promise<void> => {
     e.preventDefault();
-    
-    console.log('🚀 Начало создания объекта');
-    console.log('📝 Название объекта:', newObjectName.trim());
-    console.log('📁 Выбран файл:', selectedFile?.name);
-    console.log('📄 Содержимое файла есть:', !!selectedFile?.content);
     
     if (!newObjectName.trim()) {
       setError('Введите название объекта');
@@ -147,21 +142,14 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       map: selectedFile.content
     };
     
-    console.log('📤 Отправка запроса:', requestData);
-    
     try {
       const response = await api.post<Floor>('/floors/', requestData);
-      console.log('✅ Ответ сервера:', response.data);
-      
       await fetchFloors();
       setShowAddForm(false);
       setNewObjectName('');
       resetForm();
+      showAlert('Объект успешно добавлен', 'success');
     } catch (err: any) {
-      console.error('❌ Ошибка создания объекта:', err);
-      console.error('❌ Статус ошибки:', err.response?.status);
-      console.error('❌ Данные ошибки:', err.response?.data);
-      
       let errorMsg = 'Ошибка при добавлении объекта';
       if (err.response?.data?.detail) {
         if (typeof err.response.data.detail === 'string') {
@@ -172,14 +160,24 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       } else if (err.message) {
         errorMsg = err.message;
       }
-      
       setError(errorMsg);
+      showAlert(errorMsg, 'error');
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDeleteObject = async (place: string): Promise<void> => {
+    const confirmed = await confirm({
+      title: 'Удаление объекта',
+      message: `Удалить объект "${place}" и все его этажи? Это действие нельзя отменить.`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      confirmVariant: 'danger'
+    });
+    
+    if (!confirmed) return;
+    
     try {
       const floorsToDelete = floors.filter(f => f.place === place);
       
@@ -188,14 +186,18 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
       }
       
       await fetchFloors();
+      showAlert(`Объект "${place}" успешно удалён`, 'success');
     } catch (err: any) {
-      setError(err.response?.data?.detail || 'Ошибка при удалении объекта');
+      const errorMsg = err.response?.data?.detail || 'Ошибка при удалении объекта';
+      setError(errorMsg);
+      showAlert(errorMsg, 'error');
       setTimeout(() => setError(''), 3000);
     }
   };
 
   const handleRenameObject = async (oldPlace: string, newPlace: string): Promise<void> => {
     await fetchFloors();
+    showAlert(`Объект переименован из "${oldPlace}" в "${newPlace}"`, 'success');
   };
 
   const handleObjectClick = (place: string): void => {
@@ -216,6 +218,17 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+      {AlertComponent}
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={options?.title || ''}
+        message={options?.message || ''}
+        confirmText={options?.confirmText}
+        cancelText={options?.cancelText}
+        confirmVariant={options?.confirmVariant || 'danger'}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
       <Header user={user} onLogout={onLogout} />
 
       <main className="w-full px-4 sm:px-6 lg:px-8 py-8 flex-grow">
@@ -243,10 +256,7 @@ const ObjectsList = ({ user, onLogout }: ObjectsListProps) => {
                 <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-6 mb-8 shadow-xl">
                   <h2 className="text-xl font-semibold text-gray-200 mb-4">Новый объект</h2>
                   {error && (
-                    <div className="bg-red-500/10 border
-
-
-border-red-500/20 text-red-400 p-3 rounded-xl mb-4 text-sm">
+                    <div className="bg-red-500/10 border border-red-500/20 text-red-400 p-3 rounded-xl mb-4 text-sm">
                       {error}
                     </div>
                   )}

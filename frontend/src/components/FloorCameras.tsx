@@ -5,7 +5,9 @@ import Header from './Header';
 import Footer from './Footer';
 import CameraDrawer from './CameraDrawer';
 import HomographyCalibration from './HomographyCalibration';
+import ConfirmModal from './ConfirmModal';
 import { useAlert } from './CustomAlert';
+import { useConfirm } from '../hooks/useConfirm';
 
 interface Floor {
   id: number;
@@ -39,6 +41,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showAlert, AlertComponent } = useAlert();
+  const { confirm, isOpen: confirmOpen, options, handleConfirm, handleCancel } = useConfirm();
   const [floor, setFloor] = useState<Floor | null>(null);
   const [loading, setLoading] = useState(true);
   const [cameras, setCameras] = useState<Camera[]>([]);
@@ -129,17 +132,25 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   };
 
   const handleDeleteCamera = async (cameraId: number) => {
-    if (window.confirm('Удалить эту камеру?')) {
-      try {
-        await api.delete(`/cameras/${cameraId}`);
-        await fetchCameras();
-        await fetchZones();
-        sessionStorage.setItem('camerasUpdated', Date.now().toString());
-        showAlert('Камера успешно удалена', 'success');
-      } catch (error) {
-        console.error('Ошибка удаления камеры:', error);
-        showAlert('Ошибка при удалении камеры', 'error');
-      }
+    const confirmed = await confirm({
+      title: 'Удаление камеры',
+      message: `Удалить камеру #${cameraId}? Это действие нельзя отменить.`,
+      confirmText: 'Удалить',
+      cancelText: 'Отмена',
+      confirmVariant: 'danger'
+    });
+    
+    if (!confirmed) return;
+    
+    try {
+      await api.delete(`/cameras/${cameraId}`);
+      await fetchCameras();
+      await fetchZones();
+      sessionStorage.setItem('camerasUpdated', Date.now().toString());
+      showAlert('Камера успешно удалена', 'success');
+    } catch (error) {
+      console.error('Ошибка удаления камеры:', error);
+      showAlert('Ошибка при удалении камеры', 'error');
     }
   };
 
@@ -174,11 +185,10 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
         const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" data-camera-id="${camera.id}" />`;
         modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
         
-        // Отображаем ID камеры в центре зоны видимости
         const vertices = camera.visible_zone.vertices;
         const centerX = vertices.reduce((sum, p) => sum + p[0], 0) / vertices.length;
         const centerY = vertices.reduce((sum, p) => sum + p[1], 0) / vertices.length;
-        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="16" font-weight="bold" fill="#FF4444" stroke="#fff" stroke-width="0.5" style="pointer-events:none">${camera.id}</text>`;
+        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="bold" fill="#FF4444" stroke="#fff" stroke-width="1.5" style="pointer-events:none">${camera.id}</text>`;
         modifiedSvg = modifiedSvg.replace('</svg>', idText + '</svg>');
       }
       
@@ -186,10 +196,10 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
         const x = camera.position.x;
         const y = camera.position.y;
         const cameraIcon = `
-          <g transform="translate(${x - 12}, ${y - 12})">
-            <circle cx="12" cy="12" r="12" fill="#FF4444" stroke="#fff" stroke-width="2" />
-            <circle cx="12" cy="12" r="6" fill="#fff" />
-            <circle cx="12" cy="12" r="3" fill="#FF4444" />
+          <g transform="translate(${x - 14}, ${y - 14})">
+            <circle cx="14" cy="14" r="14" fill="#FF4444" stroke="#fff" stroke-width="2" />
+            <circle cx="14" cy="14" r="7" fill="#fff" />
+            <circle cx="14" cy="14" r="3" fill="#FF4444" />
           </g>
         `;
         modifiedSvg = modifiedSvg.replace('</svg>', cameraIcon + '</svg>');
@@ -218,15 +228,31 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
       {AlertComponent}
+      <ConfirmModal
+        isOpen={confirmOpen}
+        title={options?.title || ''}
+        message={options?.message || ''}
+        confirmText={options?.confirmText}
+        cancelText={options?.cancelText}
+        confirmVariant={options?.confirmVariant || 'danger'}
+        onConfirm={handleConfirm}
+        onCancel={handleCancel}
+      />
       <Header user={user} onLogout={onLogout} title={`Добавление камер: ${floor?.place} - Этаж ${floor?.number}`} />
 
       <main className="max-w-6xl mx-auto px-6 py-8 flex-grow">
         <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 shadow-xl p-6">
           <div className="flex justify-between items-center mb-6">
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-              Камеры этажа
-            </h1>
             <div className="flex gap-3">
+              <button
+                onClick={handleBackToFloor}
+                className="bg-gray-700 text-gray-300 px-4 py-2 rounded-xl hover:bg-gray-600 transition-all duration-200 flex items-center gap-2"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+                Вернуться к этажу
+              </button>
               {!showCameraDrawer && (
                 <button
                   onClick={() => {
@@ -241,16 +267,11 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
                   Добавить камеру
                 </button>
               )}
-              <button
-                onClick={handleBackToFloor}
-                className="bg-gray-700 text-gray-300 px-4 py-2 rounded-xl hover:bg-gray-600 transition-all duration-200 flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
-                Вернуться к этажу
-              </button>
             </div>
+            
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
+              Камеры этажа
+            </h1>
           </div>
 
           <div className="border border-gray-600 rounded-xl p-4 bg-gray-900/30">
@@ -271,7 +292,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
                   <div className="text-center text-gray-400 mb-4 py-8">
                     <div className="text-5xl mb-3">🎥</div>
                     <p>Нет добавленных камер</p>
-                    <p className="text-sm text-gray-500 mt-1">Нажмите "+ Добавить камеру"</p>
+                    <p className="text-sm text-gray-500 mt-1">Нажмите "Добавить камеру"</p>
                   </div>
                 )}
                 <div

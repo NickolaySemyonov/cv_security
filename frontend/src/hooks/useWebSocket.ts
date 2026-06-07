@@ -28,20 +28,17 @@ let notificationSubscribers: ((notifications: Notification[]) => void)[] = [];
 let globalDetections: DetectionPoint[] = [];
 let activeNotifications: Notification[] = [];
 let cameraInfoCache: Map<number, { zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> = new Map();
-let lastRenderTime = 0;
 const RENDER_INTERVAL = 100;
 
 let currentFloorCameraIds: Set<number> = new Set();
 let isConnecting = false;
-let connectionAttempts = 0;
-const MAX_RECONNECT_ATTEMPTS = 5;
-let isInitialized = false;
+let isConnected = false;
 let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
 
 let allDetections: Map<number, DetectionPoint[]> = new Map();
 
-const WS_URL = import.meta.env.VITE_WS_URL || `ws://${window.location.hostname}:8765`;
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765';
 
 function isPointInZone(x: number, y: number, vertices: number[][]): boolean {
   if (!vertices || vertices.length < 3) return false;
@@ -225,15 +222,11 @@ function removeNotification(notificationId: string) {
 }
 
 function connectWebSocket() {
-  if (isConnecting) {
+  if (isConnecting || isConnected) {
     return;
   }
   
-  if (ws && ws.readyState === WebSocket.OPEN) {
-    return;
-  }
-  
-  if (ws && ws.readyState === WebSocket.CONNECTING) {
+  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) {
     return;
   }
   
@@ -245,7 +238,7 @@ function connectWebSocket() {
     ws.onopen = () => {
       console.log(`✅ WebSocket подключен к ${WS_URL}`);
       isConnecting = false;
-      connectionAttempts = 0;
+      isConnected = true;
     };
     
     ws.onmessage = async (event) => {
@@ -270,21 +263,18 @@ function connectWebSocket() {
       console.log('WebSocket закрыт');
       ws = null;
       isConnecting = false;
-      
-      const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-      if (totalSubscribers > 0 && connectionAttempts < MAX_RECONNECT_ATTEMPTS) {
-        connectionAttempts++;
-        setTimeout(connectWebSocket, 3000);
-      }
+      isConnected = false;
     };
     
     ws.onerror = (error) => {
       console.error('WebSocket ошибка:', error);
       isConnecting = false;
+      isConnected = false;
     };
   } catch (error) {
     console.error('Ошибка создания WebSocket:', error);
     isConnecting = false;
+    isConnected = false;
   }
 }
 
@@ -294,7 +284,7 @@ function closeWebSocket() {
     ws = null;
   }
   isConnecting = false;
-  connectionAttempts = 0;
+  isConnected = false;
   if (renderTimeout) {
     clearTimeout(renderTimeout);
     renderTimeout = null;
@@ -305,11 +295,11 @@ export function useWebSocket() {
   const [detections, setDetections] = useState<DetectionPoint[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
+  const [wsConnected, setWsConnected] = useState(false);
   const isMounted = useRef(true);
-  const componentId = useRef(Math.random().toString(36).substring(7));
+  const initRef = useRef(false);
 
-  const registerFloorCameras = async (floorId: number, cameraIds: number[]) => {
+  const registerFloorCameras = (floorId: number, cameraIds: number[]) => {
     currentFloorCameraIds.clear();
     cameraIds.forEach(id => currentFloorCameraIds.add(id));
     allDetections.clear();
@@ -337,7 +327,11 @@ export function useWebSocket() {
     removeNotification(notificationId);
   };
 
+  // Инициализация WebSocket только один раз
   useEffect(() => {
+    if (initRef.current) return;
+    initRef.current = true;
+    
     isMounted.current = true;
     
     const detectionSub = (newDetections: DetectionPoint[]) => {
@@ -356,17 +350,11 @@ export function useWebSocket() {
     detectionSubscribers.push(detectionSub);
     notificationSubscribers.push(notificationSub);
     
-    const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-    
-    if (!isInitialized && totalSubscribers > 0) {
-      isInitialized = true;
-      connectWebSocket();
-    }
+    connectWebSocket();
     
     const interval = setInterval(() => {
       if (isMounted.current) {
-        const connected = ws !== null && ws.readyState === WebSocket.OPEN;
-        setIsConnected(connected);
+        setWsConnected(isConnected);
       }
     }, 1000);
     
@@ -381,11 +369,8 @@ export function useWebSocket() {
       
       clearInterval(interval);
       
-      const totalSubscribers = detectionSubscribers.length + notificationSubscribers.length;
-      
-      if (totalSubscribers === 0) {
+      if (detectionSubscribers.length === 0 && notificationSubscribers.length === 0) {
         closeWebSocket();
-        isInitialized = false;
       }
     };
   }, []);
@@ -394,7 +379,7 @@ export function useWebSocket() {
     detections,
     notifications,
     unreadCount,
-    isConnected,
+    isConnected: wsConnected,
     getDetectionsByFloor,
     registerFloorCameras,
     clearDetections,

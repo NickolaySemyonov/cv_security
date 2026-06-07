@@ -27,7 +27,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
 
-  // Закрытие при клике вне слайдера
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (isOpen && sidebarRef.current && !sidebarRef.current.contains(event.target as Node)) {
@@ -42,7 +41,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [isOpen]);
 
-  // Закрытие при нажатии ESC
   useEffect(() => {
     const handleEsc = (event: KeyboardEvent) => {
       if (isOpen && event.key === 'Escape') {
@@ -66,7 +64,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
   };
 
   const handleZoneClick = (zone: Zone) => {
-    // Только подсветка зоны на карте
     onZoneClick(zone);
   };
 
@@ -78,10 +75,12 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
     }
   };
 
+  // Убираем confirm из этого компонента - передаем вызов наверх
   const handleDelete = (e: React.MouseEvent, zone: Zone) => {
     e.stopPropagation();
-    if (onDeleteZone && isAdmin && window.confirm(`Удалить зону ${zone.id}?`)) {
+    if (onDeleteZone && isAdmin) {
       onDeleteZone(zone.id);
+      setIsOpen(false);
     }
   };
 
@@ -102,7 +101,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
 
   return (
     <>
-      {/* Кнопка-триггер */}
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`zones-sidebar-trigger fixed right-0 top-1/2 transform -translate-y-1/2 z-20
@@ -118,14 +116,12 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
         <span className="text-sm font-medium">Зоны ({zones.length})</span>
       </button>
 
-      {/* Выдвижная панель */}
       <div
         ref={sidebarRef}
         className={`fixed right-0 top-0 h-full w-80 bg-gray-800/95 backdrop-blur-md shadow-2xl z-30
           transition-transform duration-300 ease-in-out border-l border-gray-700
           ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
       >
-        {/* Заголовок с крестиком */}
         <div className="flex justify-between items-center p-4 border-b border-gray-700 bg-gray-800/50">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-500 rounded-lg flex items-center justify-center">
@@ -146,7 +142,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
           </button>
         </div>
 
-        {/* Кнопка "Выделить зону" */}
         {isAdmin && !isSelectingZone && (
           <div className="p-3 border-b border-gray-700">
             <button
@@ -169,7 +164,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
           </div>
         )}
 
-        {/* Статистика */}
         <div className="px-4 py-3 bg-gray-800/30 border-b border-gray-700">
           <div className="flex justify-between text-sm">
             <span className="text-gray-400">Всего зон:</span>
@@ -189,7 +183,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
           </div>
         </div>
 
-        {/* Список зон */}
         <div className="flex-1 overflow-auto p-3 space-y-2 max-h-[calc(100vh-280px)]">
           {zones.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
@@ -225,7 +218,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
                       </div>
                     </div>
                     
-                    {/* Кнопка расписания */}
                     <button
                       onClick={(e) => handleSchedule(e, zone)}
                       className={`p-1.5 rounded-lg transition-colors ${
@@ -238,7 +230,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
                       ⏰
                     </button>
                     
-                    {/* Кнопки редактирования и удаления - только для админов */}
                     {isAdmin && (
                       <>
                         <button
@@ -268,7 +259,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
                   </div>
                 </div>
                 
-                {/* Подсказка внизу карточки */}
                 <div className="px-3 pb-3 pt-1">
                   <div className="text-xs text-blue-400 flex items-center gap-1">
                     <span>💡</span>
@@ -280,7 +270,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
           )}
         </div>
 
-        {/* Подвал */}
         <div className="p-4 border-t border-gray-700 bg-gray-800/50">
           <div className="flex items-center justify-center gap-3 text-xs">
             <div className="flex items-center gap-1">

@@ -15,7 +15,7 @@ from security import get_current_user
 from models import User
 import os
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from database import SessionLocal
 from models import Area, Schedule
 from crud.logs import action_logger
@@ -70,7 +70,7 @@ async def health_check():
 
 async def schedule_color_updater():
     while True:
-        await asyncio.sleep(30)
+        await asyncio.sleep(5)  # Проверка каждые 5 секунд
         db = None
         try:
             db = SessionLocal()
@@ -105,12 +105,21 @@ async def schedule_color_updater():
                     start_total = start.hour * 3600 + start.minute * 60 + start.second
                     end_total = end.hour * 3600 + end.minute * 60 + end.second
                     
+                    # Добавляем 1 минуту к концу интервала (до следующей минуты)
+                    # Например: 00:19 -> 00:20 (60 секунд)
+                    end_total_extended = end_total + 60  # +1 минута
+                    
+                    # Интервал не переходит через полночь
                     if start_total <= end_total:
-                        if start_total <= current_total <= end_total:
+                        # Красная зона: от start_total до end_total + 1 минута
+                        if start_total <= current_total <= end_total_extended:
                             is_active = True
                             break
                     else:
-                        if current_total >= start_total or current_total <= end_total:
+                        # Интервал переходит через полночь
+                        # Красная зона: от start_total до 24:00 + 1 минута И от 00:00 до end_total + 1 минута
+                        end_total_extended = end_total + 60
+                        if current_total >= start_total or current_total <= end_total_extended:
                             is_active = True
                             break
                 
@@ -120,6 +129,8 @@ async def schedule_color_updater():
                     old_type = area.type
                     area.type = target_type
                     updated_count += 1
+                    
+                    print(f"[{now.strftime('%H:%M:%S')}] Зона #{area.id}: {old_type} -> {target_type}")
                     
                     try:
                         action_logger.log(
@@ -145,12 +156,7 @@ async def schedule_color_updater():
 
 @app.on_event("startup")
 async def startup_event():
-    print("\n" + "="*50)
-    print("🚀 ЗАПУСК СЕРВЕРА")
-    print("="*50)
     asyncio.create_task(schedule_color_updater())
-    print("✅ Фоновая задача запущена (проверка расписания каждые 30 секунд)")
-    print("="*50 + "\n")
 
 @app.on_event("shutdown")
 async def shutdown_event():

@@ -12,7 +12,7 @@ interface Incident {
   floor_id: number;
   floor_number: number;
   floor_map: string;
-  zone_polygons: number[][][];  // Массив полигонов
+  zone_polygons: number[][][];
 }
 
 interface User {
@@ -79,7 +79,7 @@ const IncidentsList = ({ user }: IncidentsListProps) => {
   };
 
   const handleBack = () => {
-    navigate('/objects');
+    navigate(-1); // Возврат на предыдущую страницу
   };
 
   const getMiniMapWithZone = (incident: Incident): string => {
@@ -104,7 +104,6 @@ const IncidentsList = ({ user }: IncidentsListProps) => {
     
     modifiedSvg = modifiedSvg.replace(/<svg/i, '<svg style="width:100%; height:auto; max-height:250px; display:block; margin:0 auto;"');
     
-    // Рисуем каждый полигон отдельно
     if (incident.zone_polygons && incident.zone_polygons.length > 0) {
       incident.zone_polygons.forEach(polygon => {
         if (polygon && polygon.length >= 4) {
@@ -132,10 +131,7 @@ const IncidentsList = ({ user }: IncidentsListProps) => {
 
   if (loading) {
     return (
-      <div className="min-h-screen
-
-
-bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
         <div className="flex justify-center items-center flex-grow">
           <div className="text-gray-400">Загрузка нарушений...</div>
         </div>
@@ -208,10 +204,7 @@ bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
           {filteredIncidents.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🔒</div>
-              <p
-
-
-className="text-gray-400">Нет зафиксированных нарушений</p>
+              <p className="text-gray-400">Нет зафиксированных нарушений</p>
               {(dateFrom || dateTo) && (
                 <button
                   onClick={resetFilters}
@@ -275,10 +268,7 @@ className="text-gray-400">Нет зафиксированных нарушени
                       <div className="mt-3 flex items-center justify-center gap-2 text-xs">
                         <div className="flex items-center gap-1">
                           <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
-                          <span
-
-
-className="text-gray-400">Охраняемая зона (камеры зоны)</span>
+                          <span className="text-gray-400">Охраняемая зона (камеры зоны)</span>
                         </div>
                       </div>
                     </div>

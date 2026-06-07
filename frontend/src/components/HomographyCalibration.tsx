@@ -319,37 +319,37 @@ const HomographyCalibration = ({
   };
 
   const handleSave = async () => {
-  if (videoPoints.length !== 4 || mapPoints.length !== 4) {
-    setError('Необходимо отметить 4 точки на видео и 4 точки на схеме');
-    return;
-  }
-  
-  setIsLoading(true);
-  
-  const homographyData = {
-    src_points: videoPoints.map(p => [p.x, p.y]),
-    dst_points: mapPoints.map(p => [p.x, p.y])
+    if (videoPoints.length !== 4 || mapPoints.length !== 4) {
+      setError('Необходимо отметить 4 точки на видео и 4 точки на схеме');
+      return;
+    }
+    
+    setIsLoading(true);
+    
+    const homographyData = {
+      src_points: videoPoints.map(p => [p.x, p.y]),
+      dst_points: mapPoints.map(p => [p.x, p.y])
+    };
+    
+    try {
+      await api.patch(`/cameras/${cameraId}/homography`, {
+        points_of_homography: homographyData,
+        stream_url: manualStreamUrl,
+        frame_shape: { width: frameWidth, height: frameHeight },
+        is_configured: true
+      });
+      onSave();
+    } catch (err) {
+      setError('Ошибка при сохранении');
+    } finally {
+      setIsLoading(false);
+    }
   };
-  
-  try {
-    await api.patch(`/cameras/${cameraId}/homography`, {
-      points_of_homography: homographyData,
-      stream_url: manualStreamUrl,  // URL из формы
-      frame_shape: { width: frameWidth, height: frameHeight },
-      is_configured: true
-    });
-    onSave();
-  } catch (err) {
-    setError('Ошибка при сохранении');
-  } finally {
-    setIsLoading(false);
-  }
-};
 
   if (step === 'settings') {
     return (
-      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-        <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[90vh] overflow-auto">
+      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" style={{ paddingTop: '10vh' }}>
+        <div className="bg-white rounded-2xl p-6 max-w-md w-full max-h-[85vh] overflow-auto">
           <h2 className="text-2xl font-bold mb-2">
             {isReCalibration ? 'Перекалибровка камеры' : 'Калибровка камеры'} {cameraId}
           </h2>
@@ -423,8 +423,8 @@ const HomographyCalibration = ({
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 max-w-5xl w-full max-h-[90vh] overflow-auto">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" style={{ paddingTop: '8vh' }}>
+      <div className="bg-white rounded-2xl p-6 max-w-5xl w-full max-h-[85vh] overflow-auto">
         <div className="flex justify-between items-center mb-4">
           <h2 className="text-xl font-bold">Калибровка гомографии - Камера {cameraId}</h2>
           <button onClick={() => setStep('settings')} className="text-gray-500 hover:text-gray-700">
