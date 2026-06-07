@@ -311,3 +311,21 @@
 .relative.z-10 {
   z-index: 10;
 }
+
+/* SVG должен масштабироваться и не вызывать скроллы */
+svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  max-width: 100%;
+}
+
+/* Контейнер с картой не должен иметь скроллов */
+.bg-gray-900\/30 {
+  overflow: visible !important;
+}
+
+/* Убираем скроллбары у контейнера карты */
+[ref] {
+  overflow: visible;
+}

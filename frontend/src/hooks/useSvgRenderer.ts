@@ -1,5 +1,5 @@
-import { useCallback, useRef } from 'react';
-import { normalizeSvg, getViewBox } from '../utils/svgHelpers';
+import { useCallback } from 'react';
+import { normalizeSvg } from '../utils/svgHelpers';
 
 interface Camera {
   id: number;
@@ -12,7 +12,6 @@ interface Zone {
   id: number;
   type: string;
   disabled: boolean;
-  red_zone: boolean;
   floor_id: number;
   cameras: Camera[];
 }
@@ -36,191 +35,59 @@ export const useSvgRenderer = (
   isAdmin: boolean = true
 ) => {
   
-  const lastDetectionsRef = useRef<string>('');
-  
-  const getZoneOfCamera = useCallback((cameraId: number): Zone | undefined => 
-    zones.find(zone => zone.cameras.some(cam => cam.id === cameraId)), [zones]);
-  
-  const getZoneStyle = useCallback((camera: Camera, isSelected: boolean, isInZone: boolean, cameraZone: Zone | null) => {
-    if (cameraZone?.disabled) {
-      return { fill: 'rgba(34, 139, 34, 0.5)', stroke: '#228B22', width: '3' };
-    }
-    
-    if (isSelectingZone) {
-      if (isSelected) {
-        return { fill: 'rgba(0, 255, 255, 0.6)', stroke: '#00FFFF', width: '4' };
-      }
-      if (isInZone && !editingZone) {
-        return { fill: 'rgba(128, 128, 128, 0.3)', stroke: '#888888', width: '2' };
-      }
-      return { fill: 'rgba(255, 255, 0, 0.3)', stroke: '#FFAA00', width: '2' };
-    }
-    
-    if (cameraZone?.disabled) {
-      return { fill: 'rgba(34, 139, 34, 0.5)', stroke: '#228B22', width: '3' };
-    }
-    if (isInZone) {
-      return { 
-        fill: cameraZone?.type === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)', 
-        stroke: cameraZone?.type === 'red' ? '#EF4444' : '#22C55E', 
-        width: '2' 
-      };
-    }
-    return { fill: 'rgba(100,150,255,0.15)', stroke: '#6495ED', width: '2' };
-  }, [isSelectingZone, editingZone]);
-  
-  const renderCameraZone = useCallback((camera: Camera, style: { fill: string; stroke: string; width: string }, isSelectable: boolean): string => {
-    if (!camera.visible_zone?.vertices?.length) return '';
-    const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-    const attrs = `points="${points}" fill="${style.fill}" stroke="${style.stroke}" stroke-width="${style.width}" stroke-dasharray="4,4"`;
-    const selectable = isSelectable ? ` class="selectable-zone" data-camera-id="${camera.id}" style="cursor:pointer"` : '';
-    return `<polygon ${attrs}${selectable} />`;
-  }, []);
-  
-  const renderCameraIcon = useCallback((camera: Camera, isSelectable: boolean, isSelected: boolean): string => {
-    if (!camera.position) return '';
-    const x = camera.position.x;
-    const y = camera.position.y;
-    
-    let cameraColor = '#FF4444';
-    let borderColor = '#FFFFFF';
-    let additionalClass = '';
-    let cursorStyle = (isAdmin || !isSelectingZone) ? 'cursor:pointer' : 'cursor:default';
-    let hoverEffect = '';
-    
-    if (isSelectingZone) {
-      additionalClass = 'selectable-camera';
-      if (isSelected) {
-        cameraColor = '#00FFFF';
-        borderColor = '#FFFFFF';
-      } else {
-        cameraColor = '#666666';
-        borderColor = '#CCCCCC';
-      }
-    } else {
-      additionalClass = 'clickable-camera';
-      hoverEffect = `
-        <style>
-          .camera-icon-${camera.id}:hover circle:first-child {
-            filter: drop-shadow(0 0 8px rgba(255, 68, 68, 0.8));
-            transition: filter 0.2s ease;
-          }
-          .camera-icon-${camera.id}:hover circle:last-child {
-            transform: scale(1.2);
-            transition: transform 0.2s ease;
-          }
-        </style>
-      `;
-    }
-    
-    return `
-      ${hoverEffect}
-      <g transform="translate(${x - 16}, ${y - 16})" 
-         class="camera-icon-${camera.id} ${additionalClass}" 
-         data-camera-id="${camera.id}" 
-         style="${cursorStyle}">
-        <rect x="2" y="8" width="28" height="16" rx="3" fill="${cameraColor}" stroke="${borderColor}" stroke-width="1.5" />
-        <circle cx="16" cy="16" r="7" fill="#1a1a1a" stroke="${borderColor}" stroke-width="1" />
-        <circle cx="16" cy="16" r="4" fill="#333333" />
-        <circle cx="16" cy="16" r="2" fill="#666666" />
-        <circle cx="14" cy="14" r="1" fill="#ffffff" opacity="0.8" />
-        <rect x="14" y="0" width="4" height="8" rx="1" fill="${cameraColor}" stroke="${borderColor}" stroke-width="1" />
-        <circle cx="26" cy="12" r="1.5" fill="#ff0000" opacity="0.8" />
-      </g>
-    `;
-  }, [isSelectingZone, isAdmin]);
-  
- const renderZoneBackground = useCallback((zone: Zone): string => {
-  let result = '';
-  
-  zone.cameras.forEach((camera) => {
-    if (camera.visible_zone?.vertices?.length >= 4) {
-      const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-      
-      const vertices = camera.visible_zone.vertices;
-      const centerX = vertices.reduce((sum, p) => sum + p[0], 0) / vertices.length;
-      const centerY = vertices.reduce((sum, p) => sum + p[1], 0) / vertices.length;
-      
-      if (zone.disabled) {
-        // Отключенная зона - прозрачно-серый цвет
-        result += `<polygon points="${points}" fill="rgba(128, 128, 128, 0.25)" stroke="#888888" stroke-width="3" stroke-dasharray="6,4" data-zone-id="${zone.id}" data-disabled="true" />`;
-        result += `<text x="${centerX}" y="${centerY + 5}" text-anchor="middle" font-size="16" font-weight="bold" fill="#888888" data-zone-label="${zone.id}" style="pointer-events:none; font-family: monospace;">${zone.id}</text>`;
-      } else {
-        // Активная зона - цветной полупрозрачный
-        const color = zone.type === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)';
-        const strokeColor = zone.type === 'red' ? '#EF4444' : '#22C55E';
-        const textColor = zone.type === 'red' ? '#FF8888' : '#88FF88';
-        
-        result += `<polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="6,4" data-zone-id="${zone.id}" data-disabled="false" data-type="${zone.type}" />`;
-        result += `<text x="${centerX}" y="${centerY + 5}" text-anchor="middle" font-size="16" font-weight="bold" fill="${textColor}" data-zone-label="${zone.id}" style="pointer-events:none; text-shadow: 1px 1px 1px black; font-family: monospace;">${zone.id}</text>`;
-      }
-    }
-  });
-  return result;
-}, []);
-  
-  const renderDetectionPoints = useCallback((detections: DetectionPoint[], viewBox: { x: number; y: number; width: number; height: number }): string => {
-    if (!detections.length) return '';
-    
-    let pointsHtml = '';
-    detections.forEach(detection => {
-      const isInViewBox = detection.x >= viewBox.x && detection.x <= viewBox.x + viewBox.width &&
-                          detection.y >= viewBox.y && detection.y <= viewBox.y + viewBox.height;
-      if (isInViewBox) {
-        pointsHtml += `<g transform="translate(${detection.x - 8}, ${detection.y - 8})">
-          <circle cx="8" cy="8" r="8" fill="#FF4444" stroke="#FFFFFF" stroke-width="2" />
-          <circle cx="8" cy="8" r="3" fill="#FFFFFF" />
-        </g>`;
-      }
-    });
-    return pointsHtml;
-  }, []);
-  
-  const getSvgWithAllElements = useCallback((svgContent: string): string => {
+  // Просто возвращаем чистую SVG карту без изменений
+  const getCleanSvg = useCallback((svgContent: string): string => {
     if (!svgContent) return '';
-    
-    let modifiedSvg = normalizeSvg(svgContent);
-    const configuredCameras = cameras.filter(c => c.is_configured === true);
-    const viewBox = getViewBox(modifiedSvg);
-    
-    zones.forEach(zone => {
-      const zoneHtml = renderZoneBackground(zone);
-      if (zoneHtml) {
-        modifiedSvg = modifiedSvg.replace('</svg>', zoneHtml + '</svg>');
-      }
-    });
-    
-    configuredCameras.forEach((camera) => {
-      const cameraZone = getZoneOfCamera(camera.id);
-      const isInZone = !!cameraZone;
-      const isSelected = isSelectingZone && selectedCameras.has(camera.id);
-      const style = getZoneStyle(camera, isSelected, isInZone, cameraZone || null);
-      const isSelectable = isSelectingZone && !(isInZone && !editingZone);
-      
-      if (camera.visible_zone?.vertices?.length) {
-        const zoneHtml = renderCameraZone(camera, style, isSelectable);
-        if (zoneHtml) {
-          modifiedSvg = modifiedSvg.replace('</svg>', zoneHtml + '</svg>');
-        }
-      }
-      
-      const iconHtml = renderCameraIcon(camera, isSelectable, isSelected);
-      if (iconHtml) {
-        modifiedSvg = modifiedSvg.replace('</svg>', iconHtml + '</svg>');
-      }
-    });
-    
-    const detections = getDetectionsByFloor(currentFloorId);
-    const pointsHtml = renderDetectionPoints(detections, viewBox);
-    if (pointsHtml) {
-      const svgEndIndex = modifiedSvg.lastIndexOf('</svg>');
-      if (svgEndIndex !== -1) {
-        modifiedSvg = modifiedSvg.slice(0, svgEndIndex) + pointsHtml + modifiedSvg.slice(svgEndIndex);
-      }
-    }
-    
-    return modifiedSvg;
-  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoints]);
+    return normalizeSvg(svgContent);
+  }, []);
   
-  return { getSvgWithAllElements };
+  // Получаем данные для overlay слоя
+  const getOverlayData = useCallback(() => {
+    const detections = getDetectionsByFloor(currentFloorId);
+    
+    // Подготовка зон для отрисовки
+    const zonesData = zones.map(zone => ({
+      id: zone.id,
+      type: zone.type,
+      disabled: zone.disabled,
+      cameras: zone.cameras.map(cam => ({
+        id: cam.id,
+        vertices: cam.visible_zone?.vertices || [],
+        position: cam.position,
+        isConfigured: cam.is_configured
+      }))
+    }));
+    
+    // Подготовка камер для отрисовки
+    const camerasData = cameras.map(cam => ({
+      id: cam.id,
+      position: cam.position,
+      vertices: cam.visible_zone?.vertices || [],
+      isConfigured: cam.is_configured,
+      isSelected: isSelectingZone && selectedCameras.has(cam.id),
+      isInZone: zones.some(z => z.cameras.some(c => c.id === cam.id)),
+      zoneType: zones.find(z => z.cameras.some(c => c.id === cam.id))?.type || null,
+      zoneDisabled: zones.find(z => z.cameras.some(c => c.id === cam.id))?.disabled || false,
+      isEditing: editingZone?.cameras.some(c => c.id === cam.id) || false
+    }));
+    
+    // Подготовка детекций
+    const detectionsData = detections.map(d => ({
+      x: d.x,
+      y: d.y,
+      cameraId: d.cameraId,
+      timestamp: d.timestamp
+    }));
+    
+    return {
+      zones: zonesData,
+      cameras: camerasData,
+      detections: detectionsData,
+      isSelectingZone,
+      blinkingAreaId,
+      isAdmin
+    };
+  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, getDetectionsByFloor, currentFloorId, blinkingAreaId, isAdmin]);
+  
+  return { getCleanSvg, getOverlayData };
 };

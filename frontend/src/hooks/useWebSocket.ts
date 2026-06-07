@@ -62,7 +62,7 @@ function isPointInZone(x: number, y: number, vertices: number[][]): boolean {
 
 async function loadCameraInfo(cameraId: number): Promise<{ zoneBounds: { minX: number; maxX: number; minY: number; maxY: number }, vertices: number[][] } | null> {
   if (cameraInfoCache.has(cameraId)) {
-    return cameraInfoCache.get(cameraId);
+    return cameraInfoCache.get(cameraId) || null;
   }
   
   try {
@@ -131,9 +131,7 @@ function scheduleRender() {
 
 function notifyDetectionSubscribers(newDetections: DetectionPoint[]) {
   pendingDetections = newDetections;
-
-
-scheduleRender();
+  scheduleRender();
 }
 
 function notifyNotificationSubscribers() {
@@ -286,10 +284,7 @@ function connectWebSocket() {
     };
   } catch (error) {
     console.error('Ошибка создания WebSocket:', error);
-    isConnecting =
-
-
-false;
+    isConnecting = false;
   }
 }
 

@@ -83,7 +83,10 @@ class CameraUpdate(BaseModel):
     is_active: Optional[bool] = None
     points_of_homography: Optional[Dict[str, Any]] = None
     video_stream: Optional[str] = None
-    area_id: Optional[int] = None  
+    area_id: Optional[int] = None
+    rotation: Optional[float] = None
+    reset_calibration: Optional[bool] = None
+
 
 class CameraResponse(CameraBase):
     id: int

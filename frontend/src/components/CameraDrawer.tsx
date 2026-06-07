@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 interface Point {
   x: number;
@@ -15,11 +15,12 @@ interface Camera {
 interface CameraDrawerProps {
   svgContent: string;
   existingCameras?: Camera[];
+  editingCamera?: Camera | null;
   onSave: (cameraData: any) => void;
   onCancel: () => void;
 }
 
-const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: CameraDrawerProps) => {
+const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, onSave, onCancel }: CameraDrawerProps) => {
   const svgContainerRef = useRef<HTMLDivElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [startPoint, setStartPoint] = useState<Point | null>(null);
@@ -28,6 +29,17 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const [isMovingCamera, setIsMovingCamera] = useState(false);
   const [tempCameraPos, setTempCameraPos] = useState<Point | null>(null);
   const [isDraggingCamera, setIsDraggingCamera] = useState(false);
+  const [showExistingHighlight, setShowExistingHighlight] = useState(true);
+
+  // При редактировании - показываем старую область видимости, но не загружаем её для редактирования
+  useEffect(() => {
+    if (editingCamera) {
+      // Только показываем старую область, но не загружаем для редактирования
+      setShowExistingHighlight(true);
+      // Не загружаем startPoint/endPoint из существующей камеры
+      // Пользователь должен заново выделить область
+    }
+  }, [editingCamera]);
 
   const calculateRotation = (zoneVertices: Point[], cameraPos: Point): number => {
     if (!zoneVertices.length || !cameraPos) return 0;
@@ -76,11 +88,13 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   };
 
   const handleMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
+    // В режиме перемещения камеры по периметру
     if (isMovingCamera) {
       setIsDraggingCamera(true);
       return;
     }
     
+    // Если уже есть выделенная область, не начинаем новую
     if (cameraPosition) return;
     
     const point = getSVGCoordinates(event.clientX, event.clientY);
@@ -132,9 +146,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], onSave, onCancel }: Ca
   const createRectangle = (p1: Point, p2: Point): Point[] => {
     const minX = Math.min(p1.x, p2.x);
     const minY = Math.min(p1.y, p2.y);
-
-
-const maxX = Math.max(p1.x, p2.x);
+    const maxX = Math.max(p1.x, p2.x);
     const maxY = Math.max(p1.y, p2.y);
     
     return [
@@ -201,6 +213,7 @@ const maxX = Math.max(p1.x, p2.x);
     setIsMovingCamera(false);
     setIsDraggingCamera(false);
     setTempCameraPos(null);
+    setShowExistingHighlight(true);
     onCancel();
   };
 
@@ -214,7 +227,8 @@ const maxX = Math.max(p1.x, p2.x);
         visible_zone: { vertices: zone.map(p => [p.x, p.y]) },
         points_of_homography: null,
         is_configured: false,
-        rotation: rotation
+        rotation: rotation,
+        reset_calibration: !!editingCamera
       };
       onSave(cameraData);
       setCameraPosition(null);
@@ -223,49 +237,70 @@ const maxX = Math.max(p1.x, p2.x);
       setIsMovingCamera(false);
       setIsDraggingCamera(false);
       setTempCameraPos(null);
+      setShowExistingHighlight(true);
     }
   };
 
-  const renderCameraIcon = (x: number, y: number, isExisting: boolean = false): string => {
+  // Отрисовка иконки камеры (минималистичная)
+  const renderCameraIcon = (x: number, y: number, isExisting: boolean = false, isEditing: boolean = false): string => {
+    let color = '#FF4444';
+    if (isEditing) {
+      color = '#FF6600';
+    } else if (isExisting) {
+      color = '#6495ED';
+    }
+    
     return `
-      <g transform="translate(${x - 14}, ${y - 14})">
-        <circle cx="14" cy="14" r="14" fill="${isExisting ? '#666666' : '#FF4444'}" stroke="#fff" stroke-width="2" />
-        <circle cx="14" cy="14" r="7" fill="#fff" />
-        <circle cx="14" cy="14" r="3" fill="${isExisting ? '#666666' : '#FF4444'}" />
+      <g transform="translate(${x - 10}, ${y - 10})">
+        <circle cx="10" cy="10" r="10" fill="${color}" stroke="#fff" stroke-width="1.5" />
+        <circle cx="10" cy="10" r="5" fill="#fff" />
+        <circle cx="10" cy="10" r="2.5" fill="${color}" />
       </g>
     `;
   };
 
-  const getSvgWithExistingCameras = (svgContent: string): string => {
-    if (!svgContent) return '';
+  // Получение SVG с существующими камерами
+  const getSvgWithExistingCameras = (svg: string): string => {
+    if (!svg) return '';
     
-    let modifiedSvg = svgContent;
+    let modifiedSvg = svg;
     
     existingCameras.forEach((camera) => {
+      const isEditing = editingCamera?.id === camera.id;
+      
+      // Отрисовка зоны видимости существующих камер
       if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-        const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
-        modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
+        
+        if (isEditing && showExistingHighlight) {
+          // Редактируемая камера - тонкая оранжевая обводка (минималистично)
+          const polygon = `<polygon points="${points}" fill="rgba(255, 102, 0, 0.15)" stroke="#FF6600" stroke-width="2" stroke-dasharray="4,4" />`;
+          modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
+        } else {
+          // Обычные камеры - светло-голубые
+          const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.1)" stroke="#6495ED" stroke-width="1.5" stroke-dasharray="4,4" />`;
+          modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
+        }
       }
       
+      // Отрисовка иконки камеры
       if (camera.position) {
         const x = camera.position.x;
         const y = camera.position.y;
-        modifiedSvg =
-
-
-modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
+        modifiedSvg = modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true, isEditing && showExistingHighlight) + '</svg>');
       }
     });
     
     return modifiedSvg;
   };
 
+  // Получение SVG с текущими рисунками
   const getSvgWithDrawings = (): string => {
     if (!svgContent) return '';
     
     let modifiedSvg = getSvgWithExistingCameras(svgContent);
     
+    // Отрисовка новой области видимости
     if (startPoint && endPoint) {
       const minX = Math.min(startPoint.x, endPoint.x);
       const minY = Math.min(startPoint.y, endPoint.y);
@@ -274,13 +309,14 @@ modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
       const width = maxX - minX;
       const height = maxY - minY;
       
-      const rectElement = `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="rgba(100,150,255,0.3)" stroke="#6495ED" stroke-width="3" stroke-dasharray="6,4" />`;
+      const rectElement = `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="rgba(100,150,255,0.2)" stroke="#6495ED" stroke-width="2" stroke-dasharray="6,4" />`;
       modifiedSvg = modifiedSvg.replace('</svg>', rectElement + '</svg>');
     }
     
+    // Отрисовка новой камеры
     const cameraPos = tempCameraPos || cameraPosition;
     if (cameraPos) {
-      modifiedSvg = modifiedSvg.replace('</svg>', renderCameraIcon(cameraPos.x, cameraPos.y, false) + '</svg>');
+      modifiedSvg = modifiedSvg.replace('</svg>', renderCameraIcon(cameraPos.x, cameraPos.y, false, false) + '</svg>');
     }
     
     return modifiedSvg;
@@ -290,7 +326,7 @@ modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
     <div className="mb-6">
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold text-gray-200">
-          🎥 Добавление камеры
+          {editingCamera ? `✏️ Перемещение камеры #${editingCamera.id}` : '🎥 Добавление камеры'}
         </h3>
         <div className="flex gap-2">
           {cameraPosition && !isMovingCamera && (
@@ -298,12 +334,12 @@ modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
               onClick={startMovingCamera}
               className="px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-lg text-sm hover:bg-yellow-500/30 transition-colors border border-yellow-500/30"
             >
-              ✨ Переместить камеру
+              📍 Переместить камеру по периметру
             </button>
           )}
           {isMovingCamera && (
             <span className="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm border border-blue-500/30">
-              🔵 Зажмите ЛКМ и ведите по периметру
+              🔵 Зажмите ЛКМ и ведите по периметру зоны
             </span>
           )}
           <button
@@ -317,7 +353,7 @@ modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
             disabled={!cameraPosition}
             className="px-3 py-1 bg-gradient-to-r from-green-600 to-green-500 text-white rounded-lg text-sm hover:from-green-700 hover:to-green-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-green-500/25"
           >
-            Сохранить камеру
+            {editingCamera ? 'Обновить камеру' : 'Сохранить камеру'}
           </button>
         </div>
       </div>
@@ -326,7 +362,10 @@ modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
         {!cameraPosition ? (
           <span className="flex items-center gap-2">
             <span className="text-red-400">🔴</span>
-            Зажмите левую кнопку мыши и растяните прямоугольник — это будет зона видимости камеры
+            {editingCamera 
+              ? 'Зажмите левую кнопку мыши и растяните новый прямоугольник — это будет новая зона видимости камеры'
+              : 'Зажмите левую кнопку мыши и растяните прямоугольник — это будет зона видимости камеры'
+            }
           </span>
         ) : isMovingCamera ? (
           <span className="flex items-center gap-2">
@@ -336,10 +375,18 @@ modifiedSvg.replace('</svg>', renderCameraIcon(x, y, true) + '</svg>');
         ) : (
           <span className="flex items-center gap-2">
             <span className="text-green-400">🟢</span>
-            Зона видимости создана. Нажмите "Сохранить камеру"
+            Зона видимости создана. Нажмите "Сохранить камеру" или переместите камеру по периметру
           </span>
         )}
       </p>
+      
+      {editingCamera && !cameraPosition && (
+        <div className="mb-3 p-2 bg-orange-500/5 rounded-lg border border-orange-500/20">
+          <p className="text-xs text-orange-400">
+            🟠 Текущая зона видимости камеры #{editingCamera.id} выделена оранжевым. Нарисуйте новую область.
+          </p>
+        </div>
+      )}
       
       <div
         ref={svgContainerRef}

@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
-from typing import List
+from typing import List, Optional
+from datetime import datetime
 from database import get_db
-from models import Camera, Floor, User, Detection, Notification, Schedule, Area
+from models import User, Area, Floor, Camera, Schedule, Detection, Notification
 from schemas import CameraCreate, CameraResponse, CameraUpdate
-from security import get_current_user
+from security import get_current_user, require_operator_or_admin, require_admin
 from crud.logs import action_logger
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
@@ -54,12 +55,12 @@ async def create_camera(
     camera = Camera(
         position=camera_data.position,
         visible_zone=camera_data.visible_zone,
-        is_configured=camera_data.is_configured,
-        points_of_homography=camera_data.points_of_homography,
+        is_configured=False,
+        points_of_homography=None,
         floor_id=camera_data.floor_id,
-        area_id=camera_data.area_id,
+        area_id=None,  # Новая камера не привязана к зоне
         video_stream=camera_data.video_stream,
-        frame_shape=camera_data.frame_shape,
+        frame_shape=None,
         rotation=camera_data.rotation
     )
     db.add(camera)
@@ -87,11 +88,78 @@ async def update_camera(
         raise HTTPException(404, "Камера не найдена")
     
     update_data = camera_data.dict(exclude_unset=True)
+    
+    # Сохраняем старые значения
+    old_is_configured = camera.is_configured
+    old_area_id = camera.area_id
+    
+    # Проверяем, обновляется ли visible_zone или position
+    is_zone_changed = 'visible_zone' in update_data
+    is_position_changed = 'position' in update_data
+    is_reset_calibration = update_data.get('reset_calibration', False)
+    
+    # Если меняется зона видимости, позиция или явно запрошен сброс - сбрасываем калибровку
+    if is_zone_changed or is_position_changed or is_reset_calibration:
+        update_data['is_configured'] = False
+        update_data['points_of_homography'] = None
+        update_data['frame_shape'] = None
+        # ВАЖНО: при сбросе калибровки отвязываем камеру от зоны
+        update_data['area_id'] = None
+    
+    # Применяем обновления
     for field, value in update_data.items():
         setattr(camera, field, value)
     
+    # Если камера была отвязана от зоны, проверяем нужно ли удалить пустую зону
+    if old_area_id is not None and camera.area_id is None:
+        # Проверяем, остались ли другие камеры в этой зоне
+        remaining_cameras = db.query(Camera).filter(
+            Camera.area_id == old_area_id,
+            Camera.id != camera_id
+        ).count()
+        
+        if remaining_cameras == 0:
+            # Удаляем расписание зоны
+            db.query(Schedule).filter(Schedule.area_id == old_area_id).delete()
+            # Удаляем зону
+            area = db.query(Area).filter(Area.id == old_area_id).first()
+            if area:
+                db.delete(area)
+                action_logger.log(
+                    db,
+                    user_id=current_user.id,
+                    title="АВТОМАТИЧЕСКОЕ УДАЛЕНИЕ ЗОНЫ",
+                    text=f"Зона #{old_area_id} автоматически удалена, так как в ней не осталось камер"
+                )
+        
+        action_logger.log(
+            db,
+            user_id=current_user.id,
+            title="ОТВЯЗКА КАМЕРЫ ОТ ЗОНЫ",
+            text=f"Камера #{camera_id} отвязана от зоны #{old_area_id} из-за сброса калибровки"
+        )
+    
     db.commit()
     db.refresh(camera)
+    
+    floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
+    
+    # Логируем действие
+    if is_zone_changed or is_position_changed:
+        action_logger.log(
+            db,
+            user_id=current_user.id,
+            title="ПЕРЕМЕЩЕНИЕ КАМЕРЫ",
+            text=f"Камера #{camera_id} перемещена на этаже {floor.number if floor else '?'} у объекта '{floor.place if floor else '?'}', данные калибровки сброшены, камера отвязана от зоны"
+        )
+    else:
+        action_logger.log(
+            db,
+            user_id=current_user.id,
+            title="ОБНОВЛЕНИЕ КАМЕРЫ",
+            text=f"Обновлена камера #{camera_id} на этаже {floor.number if floor else '?'} у объекта '{floor.place if floor else '?'}'"
+        )
+    
     return camera
 
 @router.patch("/{camera_id}/homography")
@@ -108,7 +176,7 @@ async def update_camera_homography(
     floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
     
     camera.points_of_homography = data.get("points_of_homography")
-    camera.video_stream = data.get("stream_url")
+    camera.video_stream = data.get("stream_url", camera.video_stream)
     camera.frame_shape = data.get("frame_shape")
     camera.is_configured = data.get("is_configured", True)
     
@@ -118,7 +186,7 @@ async def update_camera_homography(
         db,
         user_id=current_user.id,
         title="НАСТРОЙКА ГОМОГРАФИИ",
-        text=f"Настроена гомография для камеры#{camera_id} на этаже {floor.number if floor else '?'} у объекта '{floor.place if floor else '?'}'"
+        text=f"Настроена гомография для камеры #{camera_id} на этаже {floor.number if floor else '?'} у объекта '{floor.place if floor else '?'}'"
     )
     
     return {"message": "Гомография сохранена"}

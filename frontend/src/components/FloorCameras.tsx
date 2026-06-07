@@ -45,6 +45,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
   const [showCameraDrawer, setShowCameraDrawer] = useState(false);
   const [showHomographyCalibration, setShowHomographyCalibration] = useState(false);
   const [selectedCameraForCalibration, setSelectedCameraForCalibration] = useState<Camera | null>(null);
+  const [movingCamera, setMovingCamera] = useState<Camera | null>(null);
 
   const isAdmin = user?.role === 'admin';
 
@@ -96,11 +97,34 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
       await fetchCameras();
       await fetchZones();
       setShowCameraDrawer(false);
+      setMovingCamera(null);
       sessionStorage.setItem('camerasUpdated', Date.now().toString());
       showAlert('Камера успешно добавлена', 'success');
     } catch (error) {
       console.error('Ошибка сохранения камеры:', error);
       showAlert('Ошибка при сохранении камеры', 'error');
+    }
+  };
+
+  const handleUpdateCamera = async (cameraId: number, cameraData: any) => {
+    console.log('Updating camera:', cameraId, cameraData);
+    try {
+      await api.patch(`/cameras/${cameraId}`, {
+        position: cameraData.position,
+        visible_zone: cameraData.visible_zone,
+        is_configured: false,
+        points_of_homography: null,
+        rotation: cameraData.rotation
+      });
+      await fetchCameras();
+      await fetchZones();
+      setShowCameraDrawer(false);
+      setMovingCamera(null);
+      sessionStorage.setItem('camerasUpdated', Date.now().toString());
+      showAlert('Камера успешно перемещена, требуется повторная калибровка', 'success');
+    } catch (error) {
+      console.error('Ошибка обновления камеры:', error);
+      showAlert('Ошибка при перемещении камеры', 'error');
     }
   };
 
@@ -117,6 +141,12 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
         showAlert('Ошибка при удалении камеры', 'error');
       }
     }
+  };
+
+  const handleMoveCamera = (camera: Camera) => {
+    console.log('Moving camera:', camera);
+    setMovingCamera(camera);
+    setShowCameraDrawer(true);
   };
 
   const openHomographyCalibration = (camera: Camera) => {
@@ -138,10 +168,18 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
     
     let modifiedSvg = svgContent;
     
-    cameras.forEach((camera) => {if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
+    cameras.forEach((camera) => {
+      if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-        const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
+        const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" data-camera-id="${camera.id}" />`;
         modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
+        
+        // Отображаем ID камеры в центре зоны видимости
+        const vertices = camera.visible_zone.vertices;
+        const centerX = vertices.reduce((sum, p) => sum + p[0], 0) / vertices.length;
+        const centerY = vertices.reduce((sum, p) => sum + p[1], 0) / vertices.length;
+        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="16" font-weight="bold" fill="#FF4444" stroke="#fff" stroke-width="0.5" style="pointer-events:none">${camera.id}</text>`;
+        modifiedSvg = modifiedSvg.replace('</svg>', idText + '</svg>');
       }
       
       if (camera.position) {
@@ -191,7 +229,10 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
             <div className="flex gap-3">
               {!showCameraDrawer && (
                 <button
-                  onClick={() => setShowCameraDrawer(true)}
+                  onClick={() => {
+                    setMovingCamera(null);
+                    setShowCameraDrawer(true);
+                  }}
                   className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-4 py-2 rounded-xl hover:from-blue-700 hover:to-blue-600 transition-all duration-200 flex items-center gap-2 shadow-lg shadow-blue-500/25"
                 >
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -217,8 +258,12 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
               <CameraDrawer
                 svgContent={floor.map}
                 existingCameras={cameras}
-                onSave={handleSaveCamera}
-                onCancel={() => setShowCameraDrawer(false)}
+                editingCamera={movingCamera}
+                onSave={movingCamera ? (cameraData) => handleUpdateCamera(movingCamera.id, cameraData) : handleSaveCamera}
+                onCancel={() => {
+                  setShowCameraDrawer(false);
+                  setMovingCamera(null);
+                }}
               />
             ) : (
               <div className="overflow-auto max-h-[600px]">
@@ -243,42 +288,39 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
                 Список камер ({cameras.length})
               </h3>
               <div className="space-y-2 max-h-48 overflow-auto">
-                {cameras.map((camera, idx) => (
+                {cameras.map((camera) => (
                   <div key={camera.id} className="bg-gray-700/50 rounded-xl p-3 border border-gray-600">
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-medium text-gray-200">Камера {idx + 1}</span>
-                          <span className="text-sm text-gray-400">
-                            Позиция: ({Math.round(camera.position.x)}, {Math.round(camera.position.y)})
+                    <div className="flex justify-between items-center">
+                      <div className="flex items-center gap-3">
+                        <span className="font-medium text-gray-200">Камера #{camera.id}</span>
+                        {camera.is_configured ? (
+                          <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                            </svg>
+                            Откалибрована
                           </span>
-                          {camera.rotation !== undefined && camera.rotation !== null && (
-                            <span className="text-sm text-blue-400">
-                              Угол: {Math.round(camera.rotation * 180 / Math.PI)}°
-                            </span>
-                          )}
-                          {camera.is_configured ? (
-                            <span className="text-xs bg-green-500/20 text-green-400 px-2 py-0.5 rounded-full border border-green-500/30 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                              </svg>
-                              Откалибрована
-                            </span>
-                          ) : (
-                            <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30 flex items-center gap-1">
-                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                              </svg>
-                              Не откалибрована
-                            </span>
-                          )}
-                        </div>
+                        ) : (
+                          <span className="text-xs bg-yellow-500/20 text-yellow-400 px-2 py-0.5 rounded-full border border-yellow-500/30 flex items-center gap-1">
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                            </svg>
+                            Не откалибрована
+                          </span>
+                        )}
                       </div>
                       <div className="flex gap-2">
+                        <button
+                          onClick={() => handleMoveCamera(camera)}
+                          className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
+                          title="Переместить камеру"
+                        >
+                          📍 Переместить
+                        </button>
                         {camera.is_configured ? (
                           <button
                             onClick={() => openHomographyCalibration(camera)}
-                            className="text-blue-400 hover:text-blue-300 text-sm px-3 py-1 rounded-lg hover:bg-blue-500/10 transition-colors"
+                            className="text-purple-400 hover:text-purple-300 text-sm px-3 py-1 rounded-lg hover:bg-purple-500/10 transition-colors"
                           >
                             Перекалибровать
                           </button>
@@ -328,5 +370,3 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
 };
 
 export default FloorCameras;
-
-
