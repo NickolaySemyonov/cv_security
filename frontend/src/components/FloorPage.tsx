@@ -8,69 +8,33 @@ import ScheduleManager from './ScheduleManager';
 import ZonesListModal from './ZonesListModal';
 import HomographyCalibration from './HomographyCalibration';
 import CameraStreamModal from './CameraStreamModal';
+import FloorNavigation from './floor/FloorNavigation';
+import ZonesSidebar from './ZonesSidebar';
 import { useSvgRenderer } from '../hooks/useSvgRenderer';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useAlert } from './CustomAlert';
+import { Floor, User, Camera, Zone } from '../types';
 
-interface Floor {
-  id: number;
-  number: number;
-  place: string;
-  map: string;
-}
-
-interface User {
-  id: number;
-  login: string;
-  role: string;
-}
-
-interface Camera {
-  id: number;
-  floor_id: number;
-  position: { x: number; y: number };
-  visible_zone: { vertices: number[][] };
-  is_active: boolean;
-  is_configured?: boolean;
-  rotation?: number;
-  video_stream?: string;
-}
-
-interface Zone {
-  id: number;
-  type: string;
-  disabled: boolean;
-  red_zone: boolean;
-  floor_id: number;
-  cameras: Camera[];
-}
-
-interface FloorPageProps {
-  user: User | null;
-  onLogout: () => void;
-}
-
-const FloorPage = ({ user, onLogout }: FloorPageProps) => {
-  const { place } = useParams<{ place: string }>();
+const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void }) => {
+  const { place } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const decodedPlace = decodeURIComponent(place || '');
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const { showAlert, AlertComponent } = useAlert();
-  
+
   const [floors, setFloors] = useState<Floor[]>([]);
   const [currentFloor, setCurrentFloor] = useState<Floor | null>(null);
-  const [selectedFloorNumber, setSelectedFloorNumber] = useState<number>(1);
+  const [selectedFloorNumber, setSelectedFloorNumber] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [cameras, setCameras] = useState<Camera[]>([]);
   const [zones, setZones] = useState<Zone[]>([]);
-  const [updateTrigger, setUpdateTrigger] = useState(0);
-  const [initialized, setInitialized] = useState(false);
   const [floorCameraIds, setFloorCameraIds] = useState<number[]>([]);
   const [blinkingAreaId, setBlinkingAreaId] = useState<number | null>(null);
   const [forceRender, setForceRender] = useState(0);
-  
+  const [initialized, setInitialized] = useState(false);
+
   const [isSelectingZone, setIsSelectingZone] = useState(false);
   const [selectedCameras, setSelectedCameras] = useState<Set<number>>(new Set());
   const [editingZone, setEditingZone] = useState<Zone | null>(null);
@@ -84,39 +48,11 @@ const FloorPage = ({ user, onLogout }: FloorPageProps) => {
   const isAdmin = user?.role === 'admin';
   const isOperator = user?.role === 'operator';
 
-  const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections, isConnected } = useWebSocket();
+  const { detections, getDetectionsByFloor, registerFloorCameras, clearDetections } = useWebSocket();
   const { getSvgWithAllElements } = useSvgRenderer(
-    cameras, zones, isSelectingZone, selectedCameras, editingZone, 
-    getDetectionsByFloor, currentFloor?.id || 0,
-    blinkingAreaId,
-    isAdmin
+    cameras, zones, isSelectingZone, selectedCameras, editingZone,
+    getDetectionsByFloor, currentFloor?.id || 0, blinkingAreaId, isAdmin
   );
-
-  const getFloorFromUrl = () => {
-    const params = new URLSearchParams(location.search);
-    const floorParam = params.get('floor');
-    return floorParam ? parseInt(floorParam, 10) : null;
-  };
-
-  const handleZonesUpdate = async () => {
-    await fetchZones();
-    await fetchCameras();
-    setUpdateTrigger(prev => prev + 1);
-    setForceRender(prev => prev + 1);
-  };
-
-  useEffect(() => {
-    if (blinkingAreaId !== null) {
-      setForceRender(prev => prev + 1);
-      const timeout = setTimeout(() => {
-        setBlinkingAreaId(null);
-
-
-setForceRender(prev => prev + 1);
-      }, 5000);
-      return () => clearTimeout(timeout);
-    }
-  }, [blinkingAreaId]);
 
   useEffect(() => {
     fetchFloors();
@@ -124,24 +60,14 @@ setForceRender(prev => prev + 1);
 
   useEffect(() => {
     if (floors.length > 0 && !initialized) {
-      const floorFromUrl = getFloorFromUrl();
-      let targetFloor: Floor | undefined;
-      
-      if (floorFromUrl) {
-        targetFloor = floors.find(f => f.number === floorFromUrl);
-      }
-      
-      if (targetFloor) {
-        setCurrentFloor(targetFloor);
-        setSelectedFloorNumber(targetFloor.number);
-      } else if (floors.length > 0) {
-        setCurrentFloor(floors[0]);
-        setSelectedFloorNumber(floors[0].number);
-        navigate(`/objects/${encodeURIComponent(decodedPlace)}/floors?floor=${floors[0].number}`, { replace: true });
-      }
+      const floorFromUrl = new URLSearchParams(location.search).get('floor');
+      const target = floors.find(f => f.number === Number(floorFromUrl)) || floors[0];
+      setCurrentFloor(target);
+      setSelectedFloorNumber(target.number);
+      navigate(`/objects/${encodeURIComponent(decodedPlace)}/floors?floor=${target.number}`, { replace: true });
       setInitialized(true);
     }
-  }, [floors, location.search, initialized, navigate, decodedPlace]);
+  }, [floors, location.search]);
 
   useEffect(() => {
     if (currentFloor?.id) {
@@ -153,355 +79,310 @@ setForceRender(prev => prev + 1);
   }, [currentFloor?.id]);
 
   useEffect(() => {
-    if (currentFloor?.id && floorCameraIds.length > 0) {
-      const configuredIds = cameras.filter(c => c.is_configured === true).map(c => c.id);
-      registerFloorCameras(currentFloor.id, configuredIds);
-    } else if (currentFloor?.id && floorCameraIds.length === 0) {
-      registerFloorCameras(currentFloor.id, []);
+    if (currentFloor?.id && floorCameraIds.length) {
+      registerFloorCameras(currentFloor.id, cameras.filter(c => c.is_configured).map(c => c.id));
     }
   }, [currentFloor?.id, floorCameraIds, cameras]);
 
   useEffect(() => {
-    const checkCamerasUpdate = () => {
-      const camerasUpdated = sessionStorage.getItem('camerasUpdated');
-      if (camerasUpdated) {
-        sessionStorage.removeItem('camerasUpdated');
-        if (currentFloor?.id) {
-          fetchCameraIds();
-          fetchCameras();
-          fetchZones();
-          setUpdateTrigger(prev => prev + 1);
-          setForceRender(prev => prev + 1);
-        }
-      }
-    };
-    
-    checkCamerasUpdate();
-    
-    const handleFocus = () => {
-      if (currentFloor?.id) {
-        fetchCameraIds();
-        fetchCameras();
-        fetchZones();
-        setUpdateTrigger(prev => prev + 1);
+    if (blinkingAreaId) {
+      setForceRender(prev => prev + 1);
+      const timeout = setTimeout(() => {
+        setBlinkingAreaId(null);
         setForceRender(prev => prev + 1);
-      }
-    };
-    
-    window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [currentFloor?.id]);
+      }, 5000);
+      return () => clearTimeout(timeout);
+    }
+  }, [blinkingAreaId]);
 
   const fetchFloors = async () => {
     try {
-      setLoading(true);
-      const response = await api.get('/floors/');
-      const objectFloors = response.data.filter((f: Floor) => f.place === decodedPlace);
-      setFloors(objectFloors);
-    } catch (err) {
-      console.error('Ошибка загрузки этажей:', err);
-      setError('Не удалось загрузить этажи');
-    } finally {
-      setLoading(false);
+      const res = await api.get('/floors/');
+      setFloors(res.data.filter((f: Floor) => f.place === decodedPlace));
+    } catch (err) { 
+      setError('Не удалось загрузить этажи'); 
+    } finally { 
+      setLoading(false); 
     }
   };
 
   const fetchZones = async () => {
-  if (!currentFloor?.id) return;
-  try {
-    const response = await api.get(`/areas/floor/${currentFloor.id}`);
-    console.log('📦 fetchZones - получены зоны:', response.data);
-    setZones(response.data);
-  } catch (error) {
-    console.error('Ошибка загрузки зон:', error);
-  }
-};
+    if (!currentFloor?.id) return;
+    try { 
+      setZones((await api.get(`/areas/floor/${currentFloor.id}`)).data); 
+    } catch (err) { 
+      console.error(err); 
+    }
+  };
 
-const fetchCameras = async () => {
-  if (!currentFloor?.id) return;
-  try {
-    const response = await api.get(`/cameras/floor/${currentFloor.id}`);
-    console.log('📷 fetchCameras - получены камеры:', response.data);
-    setCameras(response.data);
-  } catch (error) {
-    console.error('Ошибка загрузки камер:', error);
-  }
-};
+  const fetchCameras = async () => {
+    if (!currentFloor?.id) return;
+    try { 
+      setCameras((await api.get(`/cameras/floor/${currentFloor.id}`)).data); 
+    } catch (err) { 
+      console.error(err); 
+    }
+  };
 
   const fetchCameraIds = async () => {
     if (!currentFloor?.id) return;
-    try {
-      const response = await api.get(`/cameras/floor/${currentFloor.id}/ids`);
-      setFloorCameraIds(response.data);
-    } catch (error) {
-      console.error('Ошибка загрузки ID камер:', error);
-      setFloorCameraIds([]);
+    try { 
+      setFloorCameraIds((await api.get(`/cameras/floor/${currentFloor.id}/ids`)).data); 
+    } catch (err) { 
+      setFloorCameraIds([]); 
     }
+  };
+
+  const refreshData = async () => {
+    await Promise.all([fetchZones(), fetchCameras(), fetchCameraIds()]);
+    setForceRender(prev => prev + 1);
+  };
+
+  const handleFloorChange = (floorNumber: number) => {
+    const floor = floors.find(f => f.number === floorNumber);
+    if (floor) setCurrentFloor(floor);
+    setSelectedFloorNumber(floorNumber);
+    navigate(`/objects/${encodeURIComponent(decodedPlace)}/floors?floor=${floorNumber}`, { replace: true });
+    setIsSelectingZone(false);
+    setSelectedCameras(new Set());
+    setEditingZone(null);
+  };
+
+  const handlePrevFloor = () => {
+    const sorted = [...floors].sort((a, b) => a.number - b.number);
+    const idx = sorted.findIndex(f => f.number === selectedFloorNumber);
+    if (idx > 0) handleFloorChange(sorted[idx - 1].number);
+  };
+
+  const handleNextFloor = () => {
+    const sorted = [...floors].sort((a, b) => a.number - b.number);
+    const idx = sorted.findIndex(f => f.number === selectedFloorNumber);
+    if (idx < sorted.length - 1) handleFloorChange(sorted[idx + 1].number);
   };
 
   const handleDeleteFloor = async () => {
     if (!currentFloor) return;
-    
-    if (!window.confirm(
-      `Вы действительно хотите удалить этаж ${currentFloor.number} у объекта 
-      "${decodedPlace}"?\n\nВсе камеры и зоны на этом этаже также будутудалены.`)
-    ) return;
-    
+    if (!confirm(`Удалить этаж ${currentFloor.number}? Все камеры и зоны будут удалены.`)) return;
     try {
       await api.delete(`/floors/${currentFloor.id}`);
-      showAlert('Этаж успешно удалён', 'success');
+      showAlert('Этаж удалён', 'success');
+      setTimeout(() => window.location.href = '/objects', 1000);
+    } catch (err: any) { 
+      showAlert(err.response?.data?.detail || 'Ошибка удаления', 'error'); 
+    }
+  };
+
+  const handleAddCamera = () => currentFloor?.id && navigate(`/floors/${currentFloor.id}/cameras`);
+  const handleBack = () => window.location.href = '/objects';
+  const handleOpenSchedule = (zone: Zone) => setScheduleArea(zone);
+  
+  const handleZoneClick = (zoneId: number) => {
+    const zone = zones.find(z => z.id === zoneId);
+    if (zone && isAdmin) {
+      setEditingZone(zone);
+      setSelectedCameras(new Set(zone.cameras.map(c => c.id)));
+      setIsSelectingZone(true);
+      setShowZonesModal(false);
+      setForceRender(prev => prev + 1);
+    }
+  };
+
+  // Обработчики для ZonesSidebar
+  const handleZoneClickSidebar = (zone: Zone) => {
+    // Подсветка зоны на карте при клике в боковом меню
+    const zonePolygons = document.querySelectorAll(`[data-zone-id="${zone.id}"]`);
+    zonePolygons.forEach(polygon => {
+      polygon.classList.add('zone-group-hover');
       setTimeout(() => {
-        window.location.href = '/objects';
-      }, 1000);
-    } catch (error: any) {
-      showAlert(error.response?.data?.detail || 'Ошибка при удалении этажа', 'error');
+        polygon.classList.remove('zone-group-hover');
+      }, 2000);
+    });
+    
+    // Прокрутка к зоне (опционально)
+    if (zone.cameras.length > 0 && zone.cameras[0].position) {
+      // Можно добавить прокрутку к первой камере зоны
+      const container = mapContainerRef.current;
+      if (container) {
+        const firstCamera = zone.cameras[0];
+        const svg = container.querySelector('svg');
+        if (svg && firstCamera.position) {
+          const viewBox = svg.getAttribute('viewBox');
+          if (viewBox) {
+            const [x, y, width, height] = viewBox.split(' ').map(Number);
+            const targetX = firstCamera.position.x - width / 2;
+            const targetY = firstCamera.position.y - height / 2;
+            // Плавная прокрутка
+            container.scrollTo({
+              left: Math.max(0, targetX),
+              top: Math.max(0, targetY),
+              behavior: 'smooth'
+            });
+          }
+        }
+      }
     }
   };
 
-  const handleAddCamera = () => {
-    if (currentFloor?.id) {
-      navigate(`/floors/${currentFloor.id}/cameras`);
-    }
-  };
-
-  const handleFloorChange = (floorNumber: number) => {
-    setSelectedFloorNumber(floorNumber);
-    const floor = floors.find(f => f.number === floorNumber);
-    if (floor) {
-      setCurrentFloor(floor);
-    }
-    navigate(`/objects/${encodeURIComponent(decodedPlace)}/floors?floor=${floorNumber}`, { replace: true });
-    exitZoneSelectionMode();
-  };
-
-  const handlePrevFloor = () => {
-    const currentIndex = sortedFloors.findIndex(f => f.number === selectedFloorNumber);
-    if (currentIndex > 0) {
-      const prevFloor = sortedFloors[currentIndex - 1];
-      handleFloorChange(prevFloor.number);
-    }
-  };
-
-  const handleNextFloor = () => {
-    const currentIndex = sortedFloors.findIndex(f => f.number === selectedFloorNumber);
-    if (currentIndex < sortedFloors.length - 1) {
-      const nextFloor = sortedFloors[currentIndex + 1];
-      handleFloorChange(nextFloor.number);
-    }
-  };
-
-  const handleBack = () => {
-    window.location.href = '/objects';
-  };
-
-  const startCreateZone = () => {
-    setIsSelectingZone(true);
-    setSelectedCameras(new Set());
-    setEditingZone(null);
-    setForceRender(prev => prev + 1);
-  };
-
-  const exitZoneSelectionMode = () => {
-    setIsSelectingZone(false);
-    setSelectedCameras(new Set());
-    setEditingZone(null);
-    setForceRender(prev => prev + 1);
-  };
-
-  const editZone = (zone: Zone) => {
+  const handleEditZoneFromSidebar = (zone: Zone) => {
     setEditingZone(zone);
     setSelectedCameras(new Set(zone.cameras.map(c => c.id)));
     setIsSelectingZone(true);
-    setShowZonesModal(false);
     setForceRender(prev => prev + 1);
+    showAlert(`Редактирование зоны #${zone.id}`, 'info');
   };
 
-  const isCameraInAnyZone = (cameraId: number): boolean => {
-    return zones.some(zone => zone.cameras.some(cam => cam.id === cameraId));
+  const handleDeleteZoneFromSidebar = async (zoneId: number) => {
+    if (!confirm('Удалить зону?')) return;
+    try {
+      await api.delete(`/areas/${zoneId}`);
+      await refreshData();
+      showAlert('Зона удалена', 'success');
+    } catch (err) { 
+      showAlert('Ошибка удаления', 'error'); 
+    }
   };
 
-  const getZoneOfCamera = (cameraId: number): Zone | null => {
-    return zones.find(zone => zone.cameras.some(cam => cam.id === cameraId)) || null;
+  const handleOpenScheduleFromSidebar = (zone: Zone) => {
+    setScheduleArea(zone);
   };
+
+  const isCameraInAnyZone = (id: number) => zones.some(z => z.cameras.some(c => c.id === id));
+  const getZoneOfCamera = (id: number) => zones.find(z => z.cameras.some(c => c.id === id)) || null;
 
   const toggleCameraSelection = (cameraId: number) => {
-    const cameraInZone = isCameraInAnyZone(cameraId);
+    const inZone = isCameraInAnyZone(cameraId);
     const cameraZone = getZoneOfCamera(cameraId);
-    
+
     if (editingZone) {
-      if (cameraInZone && cameraZone?.id !== editingZone.id) {
-        showAlert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
+      if (inZone && cameraZone?.id !== editingZone.id) {
+        showAlert(`⚠️ Камера уже в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
         return;
       }
-      const newSelected = new Set(selectedCameras);
-      if (newSelected.has(cameraId)) {
-        newSelected.delete(cameraId);
-      } else {
-        newSelected.add(cameraId);
-      }
-      setSelectedCameras(newSelected);
+      setSelectedCameras(prev => {
+        const newSet = new Set(prev);
+        newSet.has(cameraId) ? newSet.delete(cameraId) : newSet.add(cameraId);
+        return newSet;
+      });
       setForceRender(prev => prev + 1);
       return;
     }
-    
-    if (cameraInZone) {
-      showAlert(`⚠️ Камера уже находится в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
+
+    if (inZone) {
+      showAlert(`⚠️ Камера уже в ${cameraZone?.type === 'red' ? 'КРАСНОЙ' : 'ЗЕЛЁНОЙ'} зоне!`, 'warning');
       return;
     }
-    
-    const newSelected = new Set(selectedCameras);
-    if (newSelected.has(cameraId)) {
-      newSelected.delete(cameraId);
-    } else {
-      newSelected.add(cameraId);
-    }
-    setSelectedCameras(newSelected);
+    setSelectedCameras(prev => {
+      const newSet = new Set(prev);
+      newSet.has(cameraId) ? newSet.delete(cameraId) : newSet.add(cameraId);
+      return newSet;
+    });
     setForceRender(prev => prev + 1);
   };
 
   const saveZone = async () => {
-  console.log('💾 saveZone - начало, selectedCameras:', Array.from(selectedCameras));
-  
-  if (selectedCameras.size === 0) {
-    showAlert('Выберите хотя бы одну камеру для зоны', 'warning');
-    return;
-  }
-
-  if (!editingZone) {
-    const camerasInOtherZones = Array.from(selectedCameras).filter(camId => isCameraInAnyZone(camId));
-    if (camerasInOtherZones.length > 0) {
-      showAlert('❌ Невозможно создать зону! Некоторые камеры уже принадлежат другим зонам.', 'error');
-      return;
+    if (!selectedCameras.size) { 
+      showAlert('Выберите камеры для зоны', 'warning'); 
+      return; 
     }
-  }
-
-  setSavingZone(true);
-  try {
-    if (editingZone) {
-      console.log('📝 Обновление зоны:', editingZone.id);
-      await api.patch(`/areas/${editingZone.id}`, {
-        camera_ids: Array.from(selectedCameras)
-      });
-      showAlert('Зона успешно обновлена', 'success');
-    } else {
-      console.log('➕ Создание новой зоны');
-      await api.post('/areas/', {
-        type: 'green',
-        floor_id: currentFloor!.id,
-        camera_ids: Array.from(selectedCameras)
-      });
-      showAlert('Зона успешно создана', 'success');
+    if (!editingZone) {
+      const inOther = Array.from(selectedCameras).filter(isCameraInAnyZone);
+      if (inOther.length) { 
+        showAlert('❌ Некоторые камеры уже в других зонах', 'error'); 
+        return; 
+      }
     }
-    
-    console.log('🔄 Обновление данных...');
-    await fetchZones();
-    await fetchCameras();
-    
-    console.log('🚪 Выход из режима выделения');
-    setIsSelectingZone(false);
-    setSelectedCameras(new Set());
-    setEditingZone(null);
-    
-    console.log('⚡ Принудительная перерисовка');
-    setForceRender(prev => prev + 1);
-    
-  } catch (error: any) {
-    console.error('❌ Ошибка сохранения зоны:', error);
-    showAlert(error.response?.data?.detail || 'Ошибка при сохранении зоны', 'error');
-  } finally {
-    setSavingZone(false);
-  }
-};
 
-  const deleteZone = async (zoneId: number) => {
-    if (!window.confirm('Удалить эту зону?')) return;
+    setSavingZone(true);
     try {
-      await api.delete(`/areas/${zoneId}`);
-      await Promise.all([fetchZones(), fetchCameras()]);
-      showAlert('Зона успешно удалена', 'success');
+      if (editingZone) {
+        await api.patch(`/areas/${editingZone.id}`, { camera_ids: Array.from(selectedCameras) });
+        showAlert('Зона обновлена', 'success');
+      } else {
+        await api.post('/areas/', { type: 'green', floor_id: currentFloor!.id, camera_ids: Array.from(selectedCameras) });
+        showAlert('Зона создана', 'success');
+      }
+      await refreshData();
+      setIsSelectingZone(false);
+      setSelectedCameras(new Set());
+      setEditingZone(null);
       setForceRender(prev => prev + 1);
-      setUpdateTrigger(prev => prev + 1);
-    } catch (error) {
-      console.error('Ошибка удаления зоны:', error);
-      showAlert('Ошибка при удалении зоны', 'error');
+    } catch (err: any) { 
+      showAlert(err.response?.data?.detail || 'Ошибка', 'error'); 
+    } finally { 
+      setSavingZone(false); 
     }
   };
 
-  const handleOpenSchedule = (zone: Zone) => {
-    setScheduleArea(zone);
+  const deleteZone = async (zoneId: number) => {
+    if (!confirm('Удалить зону?')) return;
+    try {
+      await api.delete(`/areas/${zoneId}`);
+      await refreshData();
+      showAlert('Зона удалена', 'success');
+    } catch (err) { 
+      showAlert('Ошибка удаления', 'error'); 
+    }
   };
 
   const handleCameraClick = (cameraId: number) => {
     const camera = cameras.find(c => c.id === cameraId);
     if (!camera) return;
-    
     if (isAdmin) {
       setSelectedCameraForCalibration(camera);
       setShowHomographyCalibration(true);
     } else if (isOperator) {
-      const streamUrl = camera.video_stream || `http://localhost:8888/camera_${cameraId}/index.m3u8`;
-      setSelectedStreamCamera({ id: cameraId, url: streamUrl });
+      setSelectedStreamCamera({ id: cameraId, url: camera.video_stream || `http://localhost:8888/camera_${cameraId}/index.m3u8` });
     }
   };
 
   const handleSvgClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    const selectableElement = target.closest('.selectable-zone, .selectable-camera');
-    const cameraElement = target.closest('.clickable-camera');
-    
-    if (cameraElement && !isSelectingZone && (isAdmin || isOperator)) {
-      const cameraId = parseInt(cameraElement.getAttribute('data-camera-id') || '0');
-      if (cameraId) {
-        handleCameraClick(cameraId);
-        return;
-      }
+    const zoneEl = target.closest('[data-zone-id]');
+    if (zoneEl && !isSelectingZone && isAdmin) {
+      const id = parseInt(zoneEl.getAttribute('data-zone-id') || '0');
+      const zone = zones.find(z => z.id === id);
+      if (zone) handleZoneClick(id);
+      return;
     }
-    
-    if (!isSelectingZone) return;
-    
-    if (selectableElement) {
-      const cameraId = parseInt(selectableElement.getAttribute('data-camera-id') || '0');
-      if (cameraId) {
-        toggleCameraSelection(cameraId);
+    const camEl = target.closest('[data-camera-id]');
+    if (camEl && !isSelectingZone && (isAdmin || isOperator)) {
+      const id = parseInt(camEl.getAttribute('data-camera-id') || '0');
+      if (id) handleCameraClick(id);
+      return;
+    }
+    if (isSelectingZone) {
+      const selectable = target.closest('.selectable-zone, .selectable-camera');
+      if (selectable) {
+        const id = parseInt(selectable.getAttribute('data-camera-id') || '0');
+        if (id) toggleCameraSelection(id);
       }
     }
   };
 
-  const normalizeSvg = (svgContent: string): string => {
-    if (!svgContent) return '';
-    
-    let svg = svgContent;
-    
-    const hasViewBox = /viewBox=["'][^"']*["']/.test(svg);
-    
-    if (!hasViewBox) {
-      const widthMatch = svg.match(/width=["']([0-9.]+)/);
-      const heightMatch = svg.match(/height=["']([0-9.]+)/);
-      
-      if (widthMatch && heightMatch) {
-        const width = parseFloat(widthMatch[1]);
-        const height = parseFloat(heightMatch[1]);
-        svg = svg.replace(/<svg/i, `<svg viewBox="0 0 ${width} ${height}"`);
-      } else {
-        svg = svg.replace(/<svg/i, `<svg viewBox="0 0 800 600"`);
-      }
+  const normalizeSvg = (svg: string) => {
+    if (!svg) return '';
+    if (!/viewBox=["']/.test(svg)) {
+      const w = svg.match(/width=["']([0-9.]+)/)?.[1] || '800';
+      const h = svg.match(/height=["']([0-9.]+)/)?.[1] || '600';
+      svg = svg.replace(/<svg/i, `<svg viewBox="0 0 ${w} ${h}"`);
     }
-    
     return svg;
   };
 
   const svgHtml = useMemo(() => {
     if (!currentFloor?.map) return '';
-    console.log('🔄 Перерисовка SVG, forceRender:', forceRender);
     return getSvgWithAllElements(normalizeSvg(currentFloor.map));
   }, [currentFloor?.map, cameras, zones, isSelectingZone, selectedCameras, editingZone, detections, blinkingAreaId, forceRender]);
 
-  const configuredCameras = cameras.filter(c => c.is_configured === true);
-  const hasConfiguredCameras = configuredCameras.length > 0;
+  const hasConfiguredCameras = cameras.some(c => c.is_configured);
+  const sortedFloors = [...floors].sort((a, b) => a.number - b.number);
+  const currentIndex = sortedFloors.findIndex(f => f.number === selectedFloorNumber);
+  const hasPrev = currentIndex > 0;
+  const hasNext = currentIndex < sortedFloors.length - 1;
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-800via-gray-700 to-gray-800 flex flex-col">
+      <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
         <Header user={user} onLogout={onLogout} title={decodedPlace} onAreaBlink={setBlinkingAreaId} />
         <main className="flex-grow flex justify-center items-center">
           <div className="text-xl text-gray-400">Загрузка этажей...</div>
@@ -523,297 +404,87 @@ const fetchCameras = async () => {
     );
   }
 
-  const sortedFloors = [...floors].sort((a, b) => a.number - b.number);
-  const currentIndex = sortedFloors.findIndex(f => f.number === selectedFloorNumber);
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex < sortedFloors.length - 1;
-  const firstFloor = sortedFloors[0];
-  const lastFloor = sortedFloors[sortedFloors.length - 1];
-  const totalFloors = sortedFloors.length;
-
-  const renderFloorButtons = () => {
-    if (totalFloors <= 3) {
-      return sortedFloors.map((floor) => (
-        <button
-          key={floor.number}
-          onClick={() => handleFloorChange(floor.number)}
-          className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
-            selectedFloorNumber === floor.number
-              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-          }`}
-        >
-          {floor.number}
-        </button>
-      ));
-    }
-
-    const buttons = [];
-    
-    buttons.push(
-      <button
-        key={firstFloor.number}
-        onClick={() => handleFloorChange(firstFloor.number)}
-        className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
-          selectedFloorNumber === firstFloor.number
-            ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-            : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-        }`}
-      >
-        {firstFloor.number}
-      </button>
-    );
-    
-    if (currentIndex > 2) {
-      buttons.push(<span key="dots1" className="text-gray-500 px-0.5 text-sm flex-shrink-0">...</span>);
-    }
-    
-    let start = Math.max(1, currentIndex - 1);
-    let end = Math.min(totalFloors - 2, start + 2);
-    
-    if (end - start < 2 && start > 1) {
-      start = Math.max(1, end - 2);
-    }
-    
-    for (let i = start; i <= end; i++) {
-      const floor = sortedFloors[i];
-      if (floor && floor.number !== firstFloor.number && floor.number !== lastFloor.number) {
-        buttons.push(
-          <button
-            key={floor.number}
-            onClick={() => handleFloorChange(floor.number)}
-            className={`w-10 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
-              selectedFloorNumber === floor.number
-                ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-            }`}
-          >
-            {floor.number}
-          </button>
-        );
-      }
-    }
-    
-    if (currentIndex < totalFloors - 3) {
-      buttons.push(<span key="dots2" className="text-gray-500 px-0.5 text-sm flex-shrink-0">...</span>);
-    }
-    
-    if (lastFloor && lastFloor.number !== firstFloor.number) {
-      buttons.push(
-        <button
-          key={lastFloor.number}
-          onClick={() => handleFloorChange(lastFloor.number)}
-          className={`w-10 h-8 rounded-lgflex items-center justify-center flex-shrink-0 text-sm font-medium transition-all duration-200 ${
-            selectedFloorNumber === lastFloor.number
-              ? 'bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg shadow-blue-500/25'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-          }`}
-        >
-          {lastFloor.number}
-        </button>
-      );
-    }
-    
-    return buttons;
-  };
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-800 via-gray-700 to-gray-800 flex flex-col">
       {AlertComponent}
-      <Header 
-        user={user} 
-        onLogout={onLogout} 
-        title={decodedPlace} 
-        onAreaBlink={(areaId) => {
-          setBlinkingAreaId(areaId);
-        }} 
-      />
-
+      <Header user={user} onLogout={onLogout} title={decodedPlace} onAreaBlink={setBlinkingAreaId} />
       <main className="max-w-7xl mx-auto px-6 py-8 flex-grow">
         <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <button onClick={handleBack} className="text-blue-400 hover:text-blue-300 flex items-center gap-1 transition-colors">
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-                </svg>
+              <button onClick={handleBack} className="text-blue-400 hover:text-blue-300 flex items-center gap-1">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
                 <span className="text-sm">Назад</span>
               </button>
-              
-              {isAdmin && (
-                <button onClick={handleDeleteFloor} className="text-red-400 hover:text-red-300 transition-colors" title="Удалить этаж">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
-              )}
+              {isAdmin && <button onClick={handleDeleteFloor} className="text-red-400 hover:text-red-300" title="Удалить этаж">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              </button>}
             </div>
-            
-            <div className="flex items-center gap-1">
-              <label className="text-gray-300 font-medium whitespace-nowrap mr-1">Этаж:</label>
-              
-              <button onClick={handlePrevFloor} disabled={!hasPrev}
-                className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50 bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-all">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-              </button>
-              
-              {renderFloorButtons()}
-              
-              <button onClick={handleNextFloor} disabled={!hasNext}
-                className="w-8 h-8 rounded-lg flex items-center justify-center disabled:opacity-50 bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white transition-all">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
-            
-            <div className="flex gap-2">
-              {isAdmin && (
-                <button onClick={handleAddCamera}
-                  className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-3 py-1.5 rounded-xl text-sm flex items-center gap-1 hover:from-blue-700 hover:to-blue-600 transition-all duration-200 shadow-lg shadow-blue-500/25">
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 000-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                  </svg>
-                  Добавить камеру
-                </button>
-              )}
-            </div>
+            <FloorNavigation
+              floors={floors}
+              selectedFloorNumber={selectedFloorNumber}
+              onFloorChange={handleFloorChange}
+              onPrevFloor={handlePrevFloor}
+              onNextFloor={handleNextFloor}
+              hasPrev={hasPrev}
+              hasNext={hasNext}
+            />
+            {isAdmin && <button onClick={handleAddCamera} className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-3 py-1.5 rounded-xl text-sm flex items-center gap-1 shadow-lg">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              Добавить камеру
+            </button>}
           </div>
         </div>
 
-        {isAdmin && hasConfiguredCameras && (
-          <ZoneManagementPanel
-            zones={zones}
-            isSelectingZone={isSelectingZone}
-            selectedCamerasCount={selectedCameras.size}
-            savingZone={savingZone}
-            editingZone={editingZone}
-            onStartCreate={startCreateZone}
-            onCancel={exitZoneSelectionMode}
-            onSave={saveZone}
-            onOpenZonesList={() => setShowZonesModal(true)}
-            isAdmin={isAdmin}
-            showAlert={showAlert}
-            onZonesUpdate={handleZonesUpdate}
-          />
-        )}
+        {isAdmin && hasConfiguredCameras && <ZoneManagementPanel
+          zones={zones} isSelectingZone={isSelectingZone} selectedCamerasCount={selectedCameras.size}
+          savingZone={savingZone} editingZone={editingZone}
+          onStartCreate={() => { setIsSelectingZone(true); setSelectedCameras(new Set()); setEditingZone(null); setForceRender(prev => prev + 1); }}
+          onCancel={() => { setIsSelectingZone(false); setSelectedCameras(new Set()); setEditingZone(null); setForceRender(prev => prev + 1); }}
+          onSave={saveZone} isAdmin={isAdmin} showAlert={showAlert} onZonesUpdate={refreshData}
+        />}
 
-        {!isAdmin && hasConfiguredCameras && zones.length > 0 && (
-          <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 p-4 mb-6 shadow-xl">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-green-500 animate-pulse" />
-                  <span className="text-xs text-gray-300">Зелёная зона</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                  <span className="text-xs text-gray-300">Красная зона</span>
-                </div>
-              </div>
-              <button 
-                onClick={() => setShowZonesModal(true)}
-                className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-600 transition-colors"
-              >
-                📋 Показать зоны ({zones.length})
-              </button>
-            </div>
-          </div>
-        )}
+       <ZonesSidebar
+        zones={zones}
+        onZoneClick={handleZoneClickSidebar}
+        onEditZone={isAdmin ? handleEditZoneFromSidebar : undefined}
+        onDeleteZone={isAdmin ? handleDeleteZoneFromSidebar : undefined}
+        onOpenSchedule={handleOpenScheduleFromSidebar}  // ← Убрали isAdmin проверку
+        isAdmin={isAdmin}
+        showAlert={showAlert}
+      />
 
         <div className="bg-gray-800/60 backdrop-blur-sm rounded-2xl border border-gray-600/50 overflow-hidden shadow-xl">
-          <div className="p-4 border-b border-gray-600/50">
-            <h2 className="text-lg font-semibold text-gray-200">
-              {decodedPlace} - Этаж {currentFloor.number}
-            </h2>
-          </div>
+          <div className="p-4 border-b border-gray-600/50"><h2 className="text-lg font-semibold text-gray-200">{decodedPlace} - Этаж {currentFloor.number}</h2></div>
           <div 
-            className="p-4 bg-gray-900/30 flex justify-center"
-            style={{ minHeight: '500px' }}
+            ref={mapContainerRef}
+            className="p-4 bg-gray-900/30 flex justify-center" 
+            style={{ minHeight: '500px' }} 
             onClick={handleSvgClick}
           >
-            <div
-              ref={mapContainerRef}
-              dangerouslySetInnerHTML={{ __html: svgHtml }}
-              style={{ 
-                maxWidth: '100%',
-                height: 'auto',
-                display: 'flex',
-                justifyContent: 'center'
-              }}
-            />
+            <div dangerouslySetInnerHTML={{ __html: svgHtml }} style={{ maxWidth: '100%', height: 'auto' }} />
           </div>
         </div>
       </main>
+      <Footer />
 
-     <Footer />
+      {scheduleArea && <ScheduleManager areaId={scheduleArea.id} areaName={scheduleArea.type === 'red' ? 'Красная зона' : 'Зелёная зона'} areaType={scheduleArea.type}
+        areaDisabled={scheduleArea.disabled} floorMap={currentFloor.map} zoneCameras={scheduleArea.cameras} onClose={() => setScheduleArea(null)}
+        onScheduleChange={refreshData} onZoneTypeChange={refreshData} onBackToList={() => { setScheduleArea(null); setShowZonesModal(true); }}
+        isAdmin={isAdmin} showAlert={showAlert} />}
 
-      {scheduleArea && (
-        <ScheduleManager
-          areaId={scheduleArea.id}
-          areaName={scheduleArea.type === 'red' ? 'Красная зона' : 'Зелёная зона'}
-          areaType={scheduleArea.type}
-          areaDisabled={scheduleArea.disabled}
-          floorMap={currentFloor.map}
-          zoneCameras={scheduleArea.cameras}
-          onClose={() => setScheduleArea(null)}
-          onScheduleChange={() => {
-            fetchZones();
-            setUpdateTrigger(prev => prev + 1);
-          }}
-          onZoneTypeChange={() => {
-            fetchZones();
-            setUpdateTrigger(prev => prev + 1);
-          }}
-          onBackToList={() => {
-            setScheduleArea(null);
-            setShowZonesModal(true);
-          }}
-          isAdmin={isAdmin}
-          showAlert={showAlert}
-        />
-      )}
+      {showZonesModal && <ZonesListModal zones={zones} onClose={() => setShowZonesModal(false)} onEditZone={(zone) => {
+        setEditingZone(zone); setSelectedCameras(new Set(zone.cameras.map(c => c.id))); setIsSelectingZone(true); setShowZonesModal(false); setForceRender(prev => prev + 1);
+      }} onDeleteZone={deleteZone} onOpenSchedule={handleOpenSchedule} isAdmin={isAdmin} showAlert={showAlert} />}
 
-      {showZonesModal && (
-        <ZonesListModal
-          zones={zones}
-          onClose={() => setShowZonesModal(false)}
-          onEditZone={editZone}
-          onDeleteZone={deleteZone}
-          onOpenSchedule={handleOpenSchedule}
-          isAdmin={isAdmin}
-          showAlert={showAlert}
-        />
-      )}
+      {showHomographyCalibration && selectedCameraForCalibration && isAdmin && <HomographyCalibration cameraId={selectedCameraForCalibration.id}
+        cameraZone={selectedCameraForCalibration.visible_zone.vertices} cameraPosition={selectedCameraForCalibration.position} svgContent={currentFloor.map}
+        onSave={() => { setShowHomographyCalibration(false); fetchCameras(); showAlert('Калибровка сохранена', 'success'); }}
+        onCancel={() => setShowHomographyCalibration(false)} isReCalibration={selectedCameraForCalibration.is_configured || false} />}
 
-      {showHomographyCalibration && selectedCameraForCalibration && isAdmin && (
-        <HomographyCalibration
-          cameraId={selectedCameraForCalibration.id}
-          cameraZone={selectedCameraForCalibration.visible_zone.vertices}
-          cameraPosition={selectedCameraForCalibration.position}
-          svgContent={currentFloor.map}
-          onSave={() => {
-            setShowHomographyCalibration(false);
-            fetchCameras();
-            showAlert('Калибровка камеры успешно сохранена', 'success');
-          }}
-          onCancel={() => setShowHomographyCalibration(false)}
-          isReCalibration={selectedCameraForCalibration.is_configured || false}
-        />
-      )}
-
-      {selectedStreamCamera && selectedStreamCamera.id && (
-        <CameraStreamModal
-          cameraId={selectedStreamCamera.id}
-          streamUrl={selectedStreamCamera.url}
-          floorMap={currentFloor?.map}
-          cameraZone={cameras.find(c => c.id === selectedStreamCamera.id)?.visible_zone?.vertices}
-          cameraPosition={cameras.find(c => c.id === selectedStreamCamera.id)?.position}
-          onClose={() => setSelectedStreamCamera(null)}
-        />
-      )}
+      {selectedStreamCamera && <CameraStreamModal cameraId={selectedStreamCamera.id} streamUrl={selectedStreamCamera.url} floorMap={currentFloor?.map}
+        cameraZone={cameras.find(c => c.id === selectedStreamCamera.id)?.visible_zone?.vertices}
+        cameraPosition={cameras.find(c => c.id === selectedStreamCamera.id)?.position} onClose={() => setSelectedStreamCamera(null)} />}
     </div>
   );
 };

@@ -26,7 +26,6 @@ interface ZoneManagementPanelProps {
   onStartCreate: () => void;
   onCancel: () => void;
   onSave: () => void;
-  onOpenZonesList: () => void;
   isAdmin: boolean;
   showAlert?: (message: string, type: 'success' | 'error' | 'warning' | 'info') => void;
   onZonesUpdate?: () => void;
@@ -41,7 +40,6 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   onStartCreate,
   onCancel,
   onSave,
-  onOpenZonesList,
   isAdmin,
   showAlert,
   onZonesUpdate
@@ -59,15 +57,12 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
             <span className="text-xs text-gray-300">Красная зона</span>
           </div>
           {zones.length > 0 && (
-            <button 
-              onClick={onOpenZonesList}
-              className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg hover:bg-gray-600 transition-all duration-200 flex items-center gap-1"
-            >
+            <div className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg flex items-center gap-1">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
               </svg>
-              Список зон ({zones.length})
-            </button>
+              Всего зон: {zones.length}
+            </div>
           )}
         </div>
         
@@ -104,9 +99,7 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
               {savingZone ? 'Сохранение...' : (editingZone ? 'Обновить зону' : 'Сохранить зону')}
             </button>
           </div>
-
-
-)}
+        )}
       </div>
 
       {isSelectingZone && (

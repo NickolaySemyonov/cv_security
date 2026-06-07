@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import LogsModal from './LogsModal';
 import AdminPanel from './AdminPanel';
@@ -22,6 +22,8 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
   const location = useLocation();
   const [showLogs, setShowLogs] = useState(false);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const handleLogoClick = () => {
     navigate('/objects');
@@ -30,6 +32,26 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
   const handleIncidentsClick = () => {
     navigate('/incidents');
   };
+
+  const handleUserMenuToggle = () => {
+    setShowUserMenu(!showUserMenu);
+  };
+
+  const handleLogoutClick = () => {
+    setShowUserMenu(false);
+    onLogout();
+  };
+
+  // Закрытие меню при клике вне его
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const isAdmin = user?.role === 'admin';
   const isIncidentsPage = location.pathname === '/incidents';
@@ -85,10 +107,7 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
             {isAdmin && (
               <button
                 onClick={() => setShowAdminPanel(true)}
-                className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl
-
-
-transition-all duration-200 group"
+                className="relative p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-xl transition-all duration-200 group"
                 title="Управление операторами"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -100,27 +119,45 @@ transition-all duration-200 group"
 
             <div className="h-6 w-px bg-gray-700 mx-1" />
 
-            <div className="flex items-center gap-3">
-              <div className="relative group">
+            {/* Выпадающее меню пользователя */}
+            <div className="relative" ref={menuRef}>
+              <button
+                onClick={handleUserMenuToggle}
+                className="flex items-center gap-2 group focus:outline-none"
+              >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-white font-semibold shadow-lg transition-all group-hover:scale-105 ${
                   isAdmin ? 'bg-gradient-to-br from-purple-500 to-purple-600' : 'bg-gradient-to-br from-blue-500 to-blue-600'
                 }`}>
                   {user?.login?.[0]?.toUpperCase() || 'U'}
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full border-2 border-gray-900 animate-pulse" />
-              </div>
-              <div className="hidden sm:block">
-                <p className="text-sm font-medium text-gray-200">{user?.login}</p>
-                <p className="text-xs text-gray-500">{isAdmin ? 'Администратор' : 'Оператор'}</p>
-              </div>
-            </div>
+                <div className="hidden sm:block text-left">
+                  <p className="text-sm font-medium text-gray-200">{user?.login}</p>
+                  <p className="text-xs text-gray-500">{isAdmin ? 'Администратор' : 'Оператор'}</p>
+                </div>
+                <svg className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
 
-            <button
-              onClick={onLogout}
-              className="ml-2 px-4 py-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-xl font-medium transition-all duration-200 border border-red-500/20 hover:border-red-500/40"
-            >
-              Выйти
-            </button>
+              {/* Выпадающее меню */}
+              {showUserMenu && (
+                <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden z-50 animate-fadeIn">
+                  <div className="px-4 py-3 border-b border-gray-700">
+                    <p className="text-sm font-medium text-gray-200">{user?.login}</p>
+                    <p className="text-xs text-gray-500">{isAdmin ? 'Администратор' : 'Оператор'}</p>
+                  </div>
+                  <button
+                    onClick={handleLogoutClick}
+                    className="w-full px-4 py-3 text-left text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200 flex items-center gap-2 text-sm"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                    </svg>
+                    Выйти
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </header>

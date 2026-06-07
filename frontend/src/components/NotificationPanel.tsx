@@ -7,6 +7,7 @@ interface NotificationPanelProps {
 
 const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
   const [isOpen, setIsOpen] = useState(false);
+  const [isBlinking, setIsBlinking] = useState(false);
   const { notifications, unreadCount, markAsRead, clearAllNotifications, removeNotification } = useWebSocket();
 
   useEffect(() => {
@@ -14,8 +15,16 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
     if (unreadNotifications.length > 0 && onAreaBlink) {
       const latestCamera = unreadNotifications[0].camera_id;
       onAreaBlink(latestCamera);
+      // Включаем мигание кнопки при получении нового уведомления
+      setIsBlinking(true);
+      // Автоматически выключаем мигание через 5 секунд
+      const timer = setTimeout(() => {
+        setIsBlinking(false);
+      }, 5000);
+      return () => clearTimeout(timer);
     } else if (unreadNotifications.length === 0 && onAreaBlink) {
       onAreaBlink(null);
+      setIsBlinking(false);
     }
   }, [notifications, onAreaBlink]);
 
@@ -39,18 +48,32 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
     removeNotification(notificationId);
   };
 
+  // Отключаем мигание при открытии панели
+  const handleOpenPanel = () => {
+    setIsOpen(!isOpen);
+    if (!isOpen && unreadCount > 0) {
+      setIsBlinking(false);
+    }
+  };
+
   return (
     <div className="relative">
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all duration-200 group"
+        onClick={handleOpenPanel}
+        className={`relative p-2 rounded-xl transition-all duration-200 group ${
+          isBlinking 
+            ? 'bg-red-500/20 text-red-400 animate-pulse-ring' 
+            : unreadCount > 0 
+              ? 'bg-red-500/20 text-red-400' 
+              : 'text-gray-400 hover:text-white hover:bg-gray-800'
+        }`}
         title="Уведомления"
       >
         <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
         </svg>
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full shadow-lg shadow-red-500/50 animate-pulse">
+          <span className="absolute -top-1 -right-1 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full shadow-lg shadow-red-500/50">
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -88,10 +111,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                   <p className="text-gray-500">Нет уведомлений</p>
                 </div>
               ) : (
-                <div className="divide-y
-
-
-divide-gray-700">
+                <div className="divide-y divide-gray-700">
                   {notifications.map((notification) => (
                     <div
                       key={notification.id}

@@ -115,12 +115,8 @@ export const useSvgRenderer = (
     
     return `
       ${hoverEffect}
-      <g transform="translate(${x - 16}, ${y - 16})"
-cam.id - Данный веб-сайт выставлен на продажу! - cam Ресурсы и информация.
-cam.id
-
-
-class="camera-icon-${camera.id} ${additionalClass}" 
+      <g transform="translate(${x - 16}, ${y - 16})" 
+         class="camera-icon-${camera.id} ${additionalClass}" 
          data-camera-id="${camera.id}" 
          style="${cursorStyle}">
         <rect x="2" y="8" width="28" height="16" rx="3" fill="${cameraColor}" stroke="${borderColor}" stroke-width="1.5" />
@@ -134,61 +130,34 @@ class="camera-icon-${camera.id} ${additionalClass}"
     `;
   }, [isSelectingZone, isAdmin]);
   
-  const renderZoneBackground = useCallback((zone: Zone): string => {
-    if (zone.disabled) {
-      const color = 'rgba(34, 139, 34, 0.5)';
-      const strokeColor = '#228B22';
-      let result = '';
-      zone.cameras.forEach((camera) => {
-        if (camera.visible_zone?.vertices?.length >= 4) {
-          const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-          result += `<polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="6,4" />`;
-        }
-      });
-      return result;
-    }
-    
-    const isBlinking = blinkingAreaId !== null && blinkingAreaId === zone.id;
-    
-    let color, strokeColor, strokeWidth, animation;
-    
-    if (isBlinking) {
-      color = 'rgba(255, 0, 0, 0.8)';
-      strokeColor = '#FF0000';
-      strokeWidth = '4';
-      animation = 'animation: blink 0.8s ease-in-out infinite;';
-    } else if (zone.type === 'red') {
-      color = 'rgba(239, 68, 68, 0.35)';
-      strokeColor = '#EF4444';
-      strokeWidth = '3';
-      animation = '';
-    } else {
-      color = 'rgba(34, 197, 94, 0.3)';
-      strokeColor = '#22C55E';
-      strokeWidth = '3';
-      animation = '';
-    }
-    
-    let result = '';
-    if (isBlinking) {
-      result += `
-        <style>
-          @keyframes blink {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.3; }
-          }
-        </style>
-      `;
-    }
-    
-    zone.cameras.forEach((camera) => {
-      if (camera.visible_zone?.vertices?.length >= 4) {
-        const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
-        result += `<polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}" stroke-dasharray="6,4" style="${animation}" />`;
+ const renderZoneBackground = useCallback((zone: Zone): string => {
+  let result = '';
+  
+  zone.cameras.forEach((camera) => {
+    if (camera.visible_zone?.vertices?.length >= 4) {
+      const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
+      
+      const vertices = camera.visible_zone.vertices;
+      const centerX = vertices.reduce((sum, p) => sum + p[0], 0) / vertices.length;
+      const centerY = vertices.reduce((sum, p) => sum + p[1], 0) / vertices.length;
+      
+      if (zone.disabled) {
+        // Отключенная зона - прозрачно-серый цвет
+        result += `<polygon points="${points}" fill="rgba(128, 128, 128, 0.25)" stroke="#888888" stroke-width="3" stroke-dasharray="6,4" data-zone-id="${zone.id}" data-disabled="true" />`;
+        result += `<text x="${centerX}" y="${centerY + 5}" text-anchor="middle" font-size="16" font-weight="bold" fill="#888888" data-zone-label="${zone.id}" style="pointer-events:none; font-family: monospace;">${zone.id}</text>`;
+      } else {
+        // Активная зона - цветной полупрозрачный
+        const color = zone.type === 'red' ? 'rgba(239, 68, 68, 0.35)' : 'rgba(34, 197, 94, 0.3)';
+        const strokeColor = zone.type === 'red' ? '#EF4444' : '#22C55E';
+        const textColor = zone.type === 'red' ? '#FF8888' : '#88FF88';
+        
+        result += `<polygon points="${points}" fill="${color}" stroke="${strokeColor}" stroke-width="3" stroke-dasharray="6,4" data-zone-id="${zone.id}" data-disabled="false" data-type="${zone.type}" />`;
+        result += `<text x="${centerX}" y="${centerY + 5}" text-anchor="middle" font-size="16" font-weight="bold" fill="${textColor}" data-zone-label="${zone.id}" style="pointer-events:none; text-shadow: 1px 1px 1px black; font-family: monospace;">${zone.id}</text>`;
       }
-    });
-    return result;
-  }, [blinkingAreaId]);
+    }
+  });
+  return result;
+}, []);
   
   const renderDetectionPoints = useCallback((detections: DetectionPoint[], viewBox: { x: number; y: number; width: number; height: number }): string => {
     if (!detections.length) return '';
@@ -214,7 +183,6 @@ class="camera-icon-${camera.id} ${additionalClass}"
     const configuredCameras = cameras.filter(c => c.is_configured === true);
     const viewBox = getViewBox(modifiedSvg);
     
-    // Рисуем фоны зон
     zones.forEach(zone => {
       const zoneHtml = renderZoneBackground(zone);
       if (zoneHtml) {
@@ -222,11 +190,8 @@ class="camera-icon-${camera.id} ${additionalClass}"
       }
     });
     
-    // Рисуем зоны видимости камер
     configuredCameras.forEach((camera) => {
-
-
-const cameraZone = getZoneOfCamera(camera.id);
+      const cameraZone = getZoneOfCamera(camera.id);
       const isInZone = !!cameraZone;
       const isSelected = isSelectingZone && selectedCameras.has(camera.id);
       const style = getZoneStyle(camera, isSelected, isInZone, cameraZone || null);
@@ -245,7 +210,6 @@ const cameraZone = getZoneOfCamera(camera.id);
       }
     });
     
-    // Рисуем точки детекций
     const detections = getDetectionsByFloor(currentFloorId);
     const pointsHtml = renderDetectionPoints(detections, viewBox);
     if (pointsHtml) {
@@ -256,7 +220,7 @@ const cameraZone = getZoneOfCamera(camera.id);
     }
     
     return modifiedSvg;
-  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, blinkingAreaId, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoints]);
+  }, [cameras, zones, isSelectingZone, selectedCameras, editingZone, getDetectionsByFloor, currentFloorId, getZoneOfCamera, getZoneStyle, renderCameraZone, renderCameraIcon, renderZoneBackground, renderDetectionPoints]);
   
   return { getSvgWithAllElements };
 };
