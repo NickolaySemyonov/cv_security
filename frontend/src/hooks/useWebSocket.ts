@@ -39,6 +39,32 @@ let renderTimeout: NodeJS.Timeout | null = null;
 let allDetections: Map<number, DetectionPoint[]> = new Map();
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765';
+const STORAGE_KEY = 'security_notifications';
+
+// Загрузка уведомлений из localStorage
+function loadNotificationsFromStorage(): Notification[] {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      return JSON.parse(stored);
+    }
+  } catch (error) {
+    console.error('Ошибка загрузки уведомлений из storage:', error);
+  }
+  return [];
+}
+
+// Сохранение уведомлений в localStorage
+function saveNotificationsToStorage(notifications: Notification[]) {
+  try {
+    // Сохраняем только непрочитанные уведомления за последние 7 дней
+    const oneWeekAgo = Date.now() / 1000 - 7 * 24 * 3600;
+    const notificationsToSave = notifications.filter(n => !n.isRead || n.timestamp > oneWeekAgo);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(notificationsToSave));
+  } catch (error) {
+    console.error('Ошибка сохранения уведомлений в storage:', error);
+  }
+}
 
 function isPointInZone(x: number, y: number, vertices: number[][]): boolean {
   if (!vertices || vertices.length < 3) return false;
@@ -140,6 +166,8 @@ function notifyNotificationSubscribers() {
       console.error('Ошибка в подписчике уведомлений:', err);
     }
   });
+  // Сохраняем в localStorage при каждом изменении
+  saveNotificationsToStorage(activeNotifications);
 }
 
 async function processDetection(data: any) {
@@ -196,8 +224,9 @@ function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
   
   activeNotifications = [newNotification, ...activeNotifications];
   
-  if (activeNotifications.length > 100) {
-    activeNotifications = activeNotifications.slice(0, 100);
+  // Ограничиваем количество уведомлений
+  if (activeNotifications.length > 200) {
+    activeNotifications = activeNotifications.slice(0, 200);
   }
   
   notifyNotificationSubscribers();
@@ -293,11 +322,20 @@ function closeWebSocket() {
 
 export function useWebSocket() {
   const [detections, setDetections] = useState<DetectionPoint[]>([]);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadCount, setUnreadCount] = useState(0);
+  const [notifications, setNotifications] = useState<Notification[]>(() => loadNotificationsFromStorage());
+  const [unreadCount, setUnreadCount] = useState(() => loadNotificationsFromStorage().filter(n => !n.isRead).length);
   const [wsConnected, setWsConnected] = useState(false);
   const isMounted = useRef(true);
   const initRef = useRef(false);
+
+  // Загружаем сохраненные уведомления при инициализации
+  useEffect(() => {
+    const savedNotifications = loadNotificationsFromStorage();
+    if (savedNotifications.length > 0) {
+      setNotifications(savedNotifications);
+      setUnreadCount(savedNotifications.filter(n => !n.isRead).length);
+    }
+  }, []);
 
   const registerFloorCameras = (floorId: number, cameraIds: number[]) => {
     currentFloorCameraIds.clear();
@@ -317,14 +355,20 @@ export function useWebSocket() {
 
   const markAsRead = (notificationId: string) => {
     markNotificationAsRead(notificationId);
+    setUnreadCount(prev => Math.max(0, prev - 1));
   };
 
   const clearAllNotificationsLocal = () => {
     clearAllNotifications();
+    setUnreadCount(0);
   };
 
   const removeNotificationLocal = (notificationId: string) => {
     removeNotification(notificationId);
+    const notification = notifications.find(n => n.id === notificationId);
+    if (notification && !notification.isRead) {
+      setUnreadCount(prev => Math.max(0, prev - 1));
+    }
   };
 
   // Инициализация WebSocket только один раз
