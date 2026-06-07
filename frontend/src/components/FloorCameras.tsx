@@ -185,10 +185,11 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
         const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" data-camera-id="${camera.id}" />`;
         modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
         
+        // ID камеры в центре зоны видимости - увеличенный размер (28px), жирный, черная обводка
         const vertices = camera.visible_zone.vertices;
         const centerX = vertices.reduce((sum, p) => sum + p[0], 0) / vertices.length;
         const centerY = vertices.reduce((sum, p) => sum + p[1], 0) / vertices.length;
-        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="bold" fill="#FF4444" stroke="#fff" stroke-width="1.5" style="pointer-events:none">${camera.id}</text>`;
+        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="28" font-weight="bold" fill="#FF4444" stroke="#000000" stroke-width="2" style="pointer-events:none">${camera.id}</text>`;
         modifiedSvg = modifiedSvg.replace('</svg>', idText + '</svg>');
       }
       
@@ -197,7 +198,7 @@ const FloorCameras = ({ user, onLogout }: FloorCamerasProps) => {
         const y = camera.position.y;
         const cameraIcon = `
           <g transform="translate(${x - 14}, ${y - 14})">
-            <circle cx="14" cy="14" r="14" fill="#FF4444" stroke="#fff" stroke-width="2" />
+            <circle cx="14" cy="14" r="14" fill="#FF4444" stroke="#000000" stroke-width="2" />
             <circle cx="14" cy="14" r="7" fill="#fff" />
             <circle cx="14" cy="14" r="3" fill="#FF4444" />
           </g>

@@ -35,7 +35,6 @@ const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, 
   useEffect(() => {
     if (editingCamera && !hasDrawnZone) {
       // Только показываем старую зону через existingCameras, но не загружаем для редактирования
-      // Пользователь должен заново нарисовать новую зону
     }
   }, [editingCamera]);
 
@@ -189,7 +188,6 @@ const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, 
     const minY = Math.min(...zone.map(p => p.y));
     const maxY = Math.max(...zone.map(p => p.y));
     
-    // По умолчанию камера в центре верхней границы
     return { x: (minX + maxX) / 2, y: minY };
   };
 
@@ -243,15 +241,16 @@ const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, 
 
   const renderCameraIcon = (x: number, y: number, isExisting: boolean = false, isEditing: boolean = false): string => {
     let color = '#FF4444';
-    let strokeColor = '#fff';
+    let strokeColor = '#000000'; // Черная обводка
     let size = 14;
     
     if (isEditing) {
       color = '#FF6600';
-      strokeColor = '#FFD700';
+      strokeColor = '#000000';
       size = 16;
     } else if (isExisting) {
       color = '#666666';
+      strokeColor = '#000000';
     }
     
     const offset = size;
@@ -267,7 +266,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, 
     `;
   };
 
-  // Получение SVG с существующими камерами
+  // Получение SVG с существующими камерами (с выделением редактируемой)
   const getSvgWithExistingCameras = (svg: string): string => {
     if (!svg) return '';
     
@@ -281,21 +280,18 @@ const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, 
         const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
         
         if (isEditing) {
-          // Редактируемая камера - оранжевая подсветка (показываем старую зону)
           const polygon = `<polygon points="${points}" fill="rgba(255, 102, 0, 0.35)" stroke="#FF6600" stroke-width="4" stroke-dasharray="8,4" />`;
           modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
-          // Добавляем пульсирующую рамку
           const pulseRing = `<polygon points="${points}" fill="none" stroke="#FF8800" stroke-width="2" stroke-dasharray="4,4">
             <animate attributeName="opacity" values="0.3;0.9;0.3" dur="1.5s" repeatCount="indefinite" />
           </polygon>`;
           modifiedSvg = modifiedSvg.replace('</svg>', pulseRing + '</svg>');
         } else {
-          // Обычные камеры
           const polygon = `<polygon points="${points}" fill="rgba(100,150,255,0.15)" stroke="#6495ED" stroke-width="2" stroke-dasharray="4,4" />`;
           modifiedSvg = modifiedSvg.replace('</svg>', polygon + '</svg>');
         }
         
-        // ID камеры в центре зоны видимости
+        // ID камеры в центре зоны видимости - увеличенный размер (28px), жирный, черная обводка
         const vertices = camera.visible_zone.vertices;
         const centerX = vertices.reduce((sum, p) => sum + p[0], 0) / vertices.length;
         const centerY = vertices.reduce((sum, p) => sum + p[1], 0) / vertices.length;
@@ -307,7 +303,7 @@ const CameraDrawer = ({ svgContent, existingCameras = [], editingCamera = null, 
           idColor = '#22C55E';
         }
         
-        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="24" font-weight="bold" fill="${idColor}" stroke="#fff" stroke-width="1.5" style="pointer-events:none">${camera.id}</text>`;
+        const idText = `<text x="${centerX}" y="${centerY}" text-anchor="middle" dominant-baseline="middle" font-size="28" font-weight="bold" fill="${idColor}" stroke="#000000" stroke-width="2" style="pointer-events:none">${camera.id}</text>`;
         modifiedSvg = modifiedSvg.replace('</svg>', idText + '</svg>');
       }
       
