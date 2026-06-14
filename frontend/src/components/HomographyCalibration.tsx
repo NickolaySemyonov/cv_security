@@ -210,15 +210,15 @@ const HomographyCalibration = ({
       const y = point.y * scaleY;
       
       ctx.beginPath();
-      ctx.arc(x, y, 12, 0, 2 * Math.PI);
+      ctx.arc(x, y, 16, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 16px Arial';
+      ctx.font = 'bold 20px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), x, y);
@@ -251,17 +251,20 @@ const HomographyCalibration = ({
       ctx.stroke();
     }
     
+    const pointRadius = Math.min(24, Math.max(16, Math.floor(Math.min(frameWidth, frameHeight) / 30)));
+    const fontSize = Math.min(24, Math.max(18, Math.floor(pointRadius * 1.2)));
+    
     mapPoints.forEach((point, i) => {
       ctx.beginPath();
-      ctx.arc(point.x, point.y, 12, 0, 2 * Math.PI);
+      ctx.arc(point.x, point.y, pointRadius, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 2;
+      ctx.lineWidth = 3;
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 16px Arial';
+      ctx.font = `bold ${fontSize}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), point.x, point.y);
