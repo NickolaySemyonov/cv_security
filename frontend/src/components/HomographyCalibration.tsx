@@ -398,7 +398,7 @@ const HomographyCalibration = ({
               <li>Нажмите "Сохранить калибровку"</li>
             </ol>
             <div className="mt-2 text-xs text-blue-600">
-              💡 Выбирайте неподвижные объекты на видео (углы стен, двери, колонны)
+              💡 Выбирайте неподвижные объекты на видео
             </div>
           </div>
           
@@ -452,7 +452,7 @@ const HomographyCalibration = ({
             </div>
             {!videoLoaded && (
               <p className="text-sm text-blue-500 mt-2">
-                Загрузка видеопотока... {!isStreamPlaying && '(нажмите play если автоматическое воспроизведение заблокировано)'}
+                Загрузка видеопотока... {!isStreamPlaying && '(нажмите play)'}
               </p>
             )}
             {videoPoints.length > 0 && (
@@ -511,7 +511,7 @@ const HomographyCalibration = ({
           <br />
           <strong>Шаг 2:</strong> Дождитесь загрузки видеопотока
           <br />
-          <strong>Шаг 3:</strong> Отметьте 4 точки на видео и 4 точки на схеме справа в одинаковом порядке
+          <strong>Шаг 3:</strong> Отметьте 4 точки на видео и 4 точки на схеме справа
         </div>
       </div>
     </div>
