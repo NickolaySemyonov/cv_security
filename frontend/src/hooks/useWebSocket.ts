@@ -41,7 +41,6 @@ let allDetections: Map<number, DetectionPoint[]> = new Map();
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765';
 const STORAGE_KEY = 'security_notifications';
 
-// Загрузка уведомлений из localStorage
 function loadNotificationsFromStorage(): Notification[] {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -54,10 +53,8 @@ function loadNotificationsFromStorage(): Notification[] {
   return [];
 }
 
-// Сохранение уведомлений в localStorage
 function saveNotificationsToStorage(notifications: Notification[]) {
   try {
-    // Сохраняем только непрочитанные уведомления за последние 7 дней
     const oneWeekAgo = Date.now() / 1000 - 7 * 24 * 3600;
     const notificationsToSave = notifications.filter(n => !n.isRead || n.timestamp > oneWeekAgo);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(notificationsToSave));
@@ -113,6 +110,7 @@ async function loadCameraInfo(cameraId: number): Promise<{ zoneBounds: { minX: n
   return null;
 }
 
+
 function scaleToZone(
   relX: number,
   relY: number,
@@ -166,7 +164,6 @@ function notifyNotificationSubscribers() {
       console.error('Ошибка в подписчике уведомлений:', err);
     }
   });
-  // Сохраняем в localStorage при каждом изменении
   saveNotificationsToStorage(activeNotifications);
 }
 
@@ -191,9 +188,11 @@ async function processDetection(data: any) {
   const { zoneBounds, vertices } = cameraInfo;
   const newDetectionsForCamera: DetectionPoint[] = [];
   
+
   points.forEach((point: number[]) => {
     const relX = point[0];
     const relY = point[1];
+    
     const absolute = scaleToZone(relX, relY, zoneBounds);
     
     if (isPointInZone(absolute.x, absolute.y, vertices)) {
@@ -224,7 +223,6 @@ function addNotification(notification: Omit<Notification, 'id' | 'isRead'>) {
   
   activeNotifications = [newNotification, ...activeNotifications];
   
-  // Ограничиваем количество уведомлений
   if (activeNotifications.length > 200) {
     activeNotifications = activeNotifications.slice(0, 200);
   }
@@ -328,7 +326,6 @@ export function useWebSocket() {
   const isMounted = useRef(true);
   const initRef = useRef(false);
 
-  // Загружаем сохраненные уведомления при инициализации
   useEffect(() => {
     const savedNotifications = loadNotificationsFromStorage();
     if (savedNotifications.length > 0) {
@@ -371,7 +368,6 @@ export function useWebSocket() {
     }
   };
 
-  // Инициализация WebSocket только один раз
   useEffect(() => {
     if (initRef.current) return;
     initRef.current = true;

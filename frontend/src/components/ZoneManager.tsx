@@ -1,4 +1,3 @@
-// frontend/src/components/ZoneManager.tsx
 import { useState, useEffect } from 'react';
 import api from '../config/axios';
 
@@ -77,12 +76,10 @@ const ZoneManager = ({ floorId, floorMap, cameras, onZonesUpdate }: ZoneManagerP
     setLoading(true);
     try {
       if (editingZone) {
-        // Обновляем существующую зону
         await api.patch(`/areas/${editingZone.id}`, {
           camera_ids: Array.from(selectedCameras)
         });
       } else {
-        // Создаём новую зону
         await api.post('/areas/', {
           type: 'green',
           floor_id: floorId,
@@ -134,14 +131,12 @@ const ZoneManager = ({ floorId, floorMap, cameras, onZonesUpdate }: ZoneManagerP
     
     let modifiedSvg = floorMap;
     
-    // Рисуем зоны
     zones.forEach((zone) => {
       const color = zone.type === 'red' 
         ? 'rgba(255, 100, 100, 0.3)' 
         : 'rgba(100, 255, 100, 0.3)';
       const strokeColor = zone.type === 'red' ? '#FF4444' : '#44FF44';
       
-      // Для каждой камеры в зоне рисуем подсветку
       zone.cameras.forEach((camera) => {
         if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
           const points = camera.visible_zone.vertices.map(p => `${p[0]},${p[1]}`).join(' ');
@@ -151,7 +146,6 @@ const ZoneManager = ({ floorId, floorMap, cameras, onZonesUpdate }: ZoneManagerP
       });
     });
     
-    // Рисуем выделение при выборе камер
     if (isSelectingZone) {
       cameras.forEach((camera) => {
         if (camera.visible_zone?.vertices && camera.visible_zone.vertices.length >= 4) {
@@ -205,7 +199,6 @@ const ZoneManager = ({ floorId, floorMap, cameras, onZonesUpdate }: ZoneManagerP
         )}
       </div>
 
-      {/* Режим выделения зоны */}
       {isSelectingZone && (
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
           <div className="flex justify-between items-center">
@@ -240,7 +233,6 @@ const ZoneManager = ({ floorId, floorMap, cameras, onZonesUpdate }: ZoneManagerP
         </div>
       )}
 
-      {/* SVG карта с зонами */}
       <div 
         className="border rounded-lg p-2 bg-gray-50 overflow-auto"
         style={{ minHeight: '400px', maxHeight: '500px' }}
@@ -252,7 +244,6 @@ const ZoneManager = ({ floorId, floorMap, cameras, onZonesUpdate }: ZoneManagerP
         />
       </div>
 
-      {/* Список зон */}
       {zones.length > 0 && (
         <div className="mt-4 space-y-2">
           <h4 className="font-medium text-gray-700">Существующие зоны:</h4>

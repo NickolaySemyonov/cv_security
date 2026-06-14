@@ -124,15 +124,11 @@ const ScheduleManager = ({
 
   const updateZoneColors = async () => {
     try {
-      // Просто вызываем обновление цветов на сервере
       await api.post('/areas/update-colors-by-schedule');
-      // Обновляем локальное состояние миникарты
       setMiniMapKey(prev => prev + 1);
-      // Уведомляем родителя об изменении
       if (onZoneTypeChange) {
         onZoneTypeChange();
       }
-      // Не пытаемся получить зоны, так как это вызывает 404
     } catch (error) {
       console.error('Ошибка обновления цветов:', error);
     }

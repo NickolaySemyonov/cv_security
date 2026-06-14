@@ -43,7 +43,7 @@ def get_current_user(
 
 def require_admin(current_user: User = Depends(get_current_user)):
     if current_user.role != 'admin':
-        raise HTTPException(status_code=403, detail="Доступ запрещён. Требуются права администратора.")
+        raise HTTPException(status_code=403, detail="Доступ запрещён. Недостаточно прав.")
     return current_user
 
 def require_operator_or_admin(current_user: User = Depends(get_current_user)):

@@ -1,4 +1,3 @@
-// frontend/src/components/SetupWizard.tsx
 import { useState, useEffect } from 'react';
 
 interface SetupWizardProps {
@@ -81,7 +80,6 @@ const SetupWizard = ({
               {name}
             </span>
 
-            {/* Линия-соединитель (кроме последнего) */}
             {index < totalSteps - 1 && (
               <div className={`
                 absolute top-1/2 -right-2 w-4 h-0.5

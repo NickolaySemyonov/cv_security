@@ -1,4 +1,3 @@
-// src/components/PrivateRoute.tsx
 import { Navigate } from 'react-router-dom';
 import { ReactNode } from 'react';
 

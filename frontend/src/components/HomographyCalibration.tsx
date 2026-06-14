@@ -414,7 +414,7 @@ const HomographyCalibration = ({
               Отмена
             </button>
             <button onClick={handleNextFromSettings} className="px-4 py-2 bg-blue-500 text-white rounded-lg">
-              Далее →
+              Далее 
             </button>
           </div>
         </div>
@@ -496,7 +496,7 @@ const HomographyCalibration = ({
         
         <div className="flex justify-between items-center mt-6 pt-4 border-t">
           <button onClick={resetAllPoints} className="px-4 py-2 bg-red-500 text-white rounded-lg">
-            🗑 Сбросить всё
+             Сбросить всё
           </button>
           <button 
             onClick={handleSave} 

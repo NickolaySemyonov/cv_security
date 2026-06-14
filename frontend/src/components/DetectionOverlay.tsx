@@ -18,8 +18,6 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    console.log('[DETECTION_OVERLAY] detections:', detections);
-    console.log('[DETECTION_OVERLAY] cameras:', cameras);
   }, [detections, cameras]);
 
   const getCameraColor = (cameraId: number): string => {
@@ -57,9 +55,7 @@ const DetectionOverlay = ({ svgContent, detections, cameras = [], isConnected }:
     detections.forEach((detection, idx) => {
       const x = detection.x;
       const y = detection.y;
-      
-      console.log(`[DETECTION_OVERLAY] Отрисовка точки ${idx}: x=${x}, y=${y}, camera=${detection.cameraId}`);
-      
+            
       const camera = cameras.find(c => c.id === detection.cameraId);
       const color = getCameraColor(detection.cameraId);
       const isInZone = camera ? isPointInZone(x, y, camera.zone) : true;

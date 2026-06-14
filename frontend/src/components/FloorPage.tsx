@@ -95,7 +95,6 @@ const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void
     highlightTimeoutRef.current = setTimeout(updateIntensity, 50);
   }, []);
 
-  // Функция fetchZones с отладкой - без зависимости от zones
   const fetchZones = useCallback(async () => {
     if (!currentFloor?.id) {
       return;
@@ -105,15 +104,10 @@ const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void
       const response = await api.get(`/areas/floor/${currentFloor.id}`);
       const newZones = response.data;
       
-      // Сравниваем с сохраненными в ref зонами
       const oldZonesStr = JSON.stringify(zonesRef.current.map(z => ({ id: z.id, type: z.type, disabled: z.disabled })));
       const newZonesStr = JSON.stringify(newZones.map((z: Zone) => ({ id: z.id, type: z.type, disabled: z.disabled })));
       
       if (oldZonesStr !== newZonesStr) {
-        console.log(`🔄 fetchZones: ОБНАРУЖЕНЫ ИЗМЕНЕНИЯ ЗОН в ${new Date().toLocaleTimeString()}`);
-        console.log('   Было:', zonesRef.current.map(z => ({ id: z.id, type: z.type })));
-        console.log('   Стало:', newZones.map((z: Zone) => ({ id: z.id, type: z.type })));
-        
         zonesRef.current = newZones;
         setZones(newZones);
         setLastZoneUpdate(new Date());
@@ -128,18 +122,14 @@ const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void
   useEffect(() => {
     if (!currentFloor?.id) return;
     
-    console.log(`🚀 Запуск периодического опроса зон для этажа ${currentFloor.id} (каждую секунду)`);
     
-    // Первоначальная загрузка
     fetchZones();
     
-    // Периодическое обновление каждую секунду
     intervalRef.current = setInterval(() => {
       fetchZones();
     }, 1000);
     
     return () => {
-      console.log(`🛑 Остановка периодического опроса зон для этажа ${currentFloor.id}`);
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -147,7 +137,6 @@ const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void
     };
   }, [currentFloor?.id, fetchZones]);
 
-  // Отслеживание мигающих зон на основе уведомлений
   useEffect(() => {
     const activeNotifications = notifications.filter((n: Notification) => !n.isRead);
     const newZonesWithAlerts = new Set<number>();
@@ -430,9 +419,7 @@ const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void
       await api.post('/areas/', { type: 'green', floor_id: currentFloor!.id, camera_ids: Array.from(selectedCameras) });
       showAlert('Зона создана', 'success');
     }
-    
-    // Принудительное обновление - перезагружаем страницу
-    // Это самое надежное решение, чтобы гарантировать обновление цветов
+  
     setTimeout(() => {
       window.location.reload();
     }, 500);

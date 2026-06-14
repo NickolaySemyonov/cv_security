@@ -42,7 +42,6 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
   showAlert,
   onZonesUpdate
 }) => {
-  // Подсчет зон по типам
   const greenZones = zones.filter(z => !z.disabled && z.type === 'green').length;
   const redZones = zones.filter(z => !z.disabled && z.type === 'red').length;
   const disabledZones = zones.filter(z => z.disabled).length;
@@ -72,7 +71,6 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
           </div>
         </div>
 
-        {/* Режим выделения зоны */}
         {isAdmin && isSelectingZone && (
           <div className="flex items-center gap-2">
             <div className="px-2 py-1 bg-blue-500/20 rounded-lg border border-blue-500/30">
@@ -97,7 +95,6 @@ export const ZoneManagementPanel: React.FC<ZoneManagementPanelProps> = ({
         )}
       </div>
 
-      {/* Подсказка в режиме выделения */}
       {isSelectingZone && (
         <p className="text-xs text-blue-400 mt-2 pt-1 border-t border-gray-700/50 text-center">
           💡 Нажмите на камеру, чтобы добавить/удалить её из зоны

@@ -101,7 +101,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     };
   };
 
-  // Проверка точки в полигоне
   const isPointInPolygon = (x: number, y: number, vertices: number[][]): boolean => {
     let inside = false;
     for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
@@ -113,20 +112,17 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     return inside;
   };
 
-  // Проверка клика по области видимости камеры
   const isPointOnCameraZone = (x: number, y: number, vertices: number[][]): boolean => {
     if (!vertices || vertices.length < 4) return false;
     return isPointInPolygon(x, y, vertices);
   };
 
-  // Проверка клика по иконке камеры
   const isPointOnCameraIcon = (x: number, y: number, cameraPos: { x: number; y: number }): boolean => {
     const dx = Math.abs(x - cameraPos.x);
     const dy = Math.abs(y - cameraPos.y);
     return dx < 18 && dy < 18;
   };
 
-  // Обработчик движения мыши
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const transform = getTransform();
     if (!transform) return;
@@ -164,7 +160,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     setHoveredZoneId(foundZoneId);
   };
 
-  // Отрисовка зон видимости камер
   const drawCameraZones = (ctx: CanvasRenderingContext2D, transform: any) => {
     cameras.forEach(camera => {
       if (camera.vertices && camera.vertices.length >= 4) {
@@ -205,7 +200,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     });
   };
 
-  // Отрисовка зон (красные/зеленые зоны)
   const drawZones = (ctx: CanvasRenderingContext2D, transform: any) => {
     zones.forEach(zone => {
       const shouldBlink = blinkingZones.has(zone.id);
@@ -240,7 +234,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
             ctx.stroke();
           }
           
-          // Эффект выделения при клике на карточку
           if (isHighlighted && !isSelectingZone) {
             ctx.save();
             const alpha = highlightIntensity;
@@ -253,7 +246,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
             ctx.restore();
           }
           
-          // Hover эффект
           if (hoveredZoneId === zone.id && !isSelectingZone && !isHighlighted) {
             ctx.save();
             ctx.shadowBlur = 12;
@@ -285,7 +277,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
             ctx.restore();
           }
           
-          // Номер зоны в центре
           if (!isSelectingZone) {
             const centerX = points.reduce((sum, p) => sum + p.x, 0) / points.length;
             const centerY = points.reduce((sum, p) => sum + p.y, 0) / points.length;
@@ -306,7 +297,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     });
   };
 
-  // Отрисовка камер
   const drawCameras = (ctx: CanvasRenderingContext2D, transform: any) => {
     cameras.forEach(camera => {
       const pos = svgToCanvas(camera.position.x, camera.position.y, transform);
@@ -374,7 +364,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     });
   };
 
-  // Отрисовка детекций
   const drawDetections = (ctx: CanvasRenderingContext2D, transform: any) => {
     detections.forEach(detection => {
       const pos = svgToCanvas(detection.x, detection.y, transform);
@@ -402,7 +391,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     });
   };
 
-  // Обновление размера canvas
   const updateCanvasSize = () => {
     const container = svgContainerRef.current;
     const canvas = canvasRef.current;
@@ -415,7 +403,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     canvas.style.height = `${rect.height}px`;
   };
 
-  // Основная отрисовка
   const renderOverlay = () => {
     const canvas = canvasRef.current;
     const transform = getTransform();
@@ -433,7 +420,6 @@ const FloorOverlay: React.FC<FloorOverlayProps> = ({
     drawDetections(ctx, transform);
   };
 
-  // Обработчик клика
   const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const transform = getTransform();
     if (!transform) return;

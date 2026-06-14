@@ -176,7 +176,7 @@ class IncidentResponse(BaseModel):
     floor_id: int
     floor_number: int
     floor_map: str
-    zone_polygons: List[List[List[float]]]  # Список полигонов (каждый полигон - список вершин)
+    zone_polygons: List[List[List[float]]]  
     
     class Config:
         from_attributes = True

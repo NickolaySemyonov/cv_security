@@ -7,12 +7,9 @@ from schemas import ScheduleCreate, ScheduleUpdate
 class CRUDSchedule:
     @staticmethod
     def _check_overlap(db: Session, area_id: int, day: str, start_time: datetime, end_time: datetime, exclude_id: Optional[int] = None) -> bool:
-        """Проверяет, пересекается ли новый интервал с существующими"""
         start_min = start_time.hour * 60 + start_time.minute
         end_min = end_time.hour * 60 + end_time.minute
-        
-        print(f"[DEBUG] Проверка пересечения: день={day}, время={start_min}-{end_min}")
-        
+                
         query = db.query(Schedule).filter(
             Schedule.area_id == area_id,
             Schedule.day == day
@@ -22,7 +19,6 @@ class CRUDSchedule:
             query = query.filter(Schedule.id != exclude_id)
         
         existing = query.all()
-        print(f"[DEBUG] Существующих интервалов: {len(existing)}")
         
         for existing_schedule in existing:
             existing_start = existing_schedule.start_time
@@ -35,21 +31,14 @@ class CRUDSchedule:
             
             existing_start_min = existing_start.hour * 60 + existing_start.minute
             existing_end_min = existing_end.hour * 60 + existing_end.minute
-            
-            print(f"[DEBUG] Существующий: {existing_start_min}-{existing_end_min}")
-            
-            # Проверяем пересечение
+                        
             if not (end_min <= existing_start_min or start_min >= existing_end_min):
-                print(f"[DEBUG] ПЕРЕСЕЧЕНИЕ ОБНАРУЖЕНО!")
                 return True
         
-        print(f"[DEBUG] Пересечений нет")
         return False
     
     @staticmethod
     def create(db: Session, schedule_data: ScheduleCreate) -> Schedule:
-        """Создать интервал в расписании с проверкой на пересечение"""
-        print(f"[DEBUG] Создание интервала: area_id={schedule_data.area_id}, day={schedule_data.day}, start={schedule_data.start_time}, end={schedule_data.end_time}")
         
         area = db.query(Area).filter(Area.id == schedule_data.area_id).first()
         if not area:
@@ -80,7 +69,6 @@ class CRUDSchedule:
         db.add(schedule)
         db.commit()
         db.refresh(schedule)
-        print(f"[DEBUG] Интервал успешно создан, id={schedule.id}")
         return schedule
     
     @staticmethod
@@ -116,7 +104,7 @@ class CRUDSchedule:
             raise ValueError("Время начала должно быть меньше времени окончания")
         
         if CRUDSchedule._check_overlap(db, schedule.area_id, new_day.value, new_start, new_end, schedule_id):
-            raise ValueError("Интервал пересекается с существующим расписанием")
+            raise ValueError("Интервал пересекается с существующим")
         
         if schedule_data.start_time:
             schedule.start_time = new_start

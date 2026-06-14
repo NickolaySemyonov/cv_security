@@ -35,15 +35,12 @@ export const useSvgRenderer = (
   isAdmin: boolean = true
 ) => {
   
-  // Просто возвращаем чистую SVG карту без изменений
   const getCleanSvg = useCallback((svgContent: string): string => {
     if (!svgContent) return '';
     return normalizeSvg(svgContent);
   }, []);
   
-  // Получаем данные для overlay слоя
   const getOverlayData = useCallback(() => {
-    // Если на этаже нет камер, НИКОГДА не показываем детекции
     if (cameras.length === 0) {
       return {
         zones: [],
@@ -57,7 +54,6 @@ export const useSvgRenderer = (
     
     const detections = getDetectionsByFloor(currentFloorId);
     
-    // Подготовка зон для отрисовки
     const zonesData = zones.map(zone => ({
       id: zone.id,
       type: zone.type,
@@ -70,7 +66,6 @@ export const useSvgRenderer = (
       }))
     }));
     
-    // Подготовка камер для отрисовки
     const camerasData = cameras.map(cam => ({
       id: cam.id,
       position: cam.position,
@@ -83,7 +78,6 @@ export const useSvgRenderer = (
       isEditing: editingZone?.cameras.some(c => c.id === cam.id) || false
     }));
     
-    // Подготовка детекций
     const detectionsData = detections.map(d => ({
       x: d.x,
       y: d.y,

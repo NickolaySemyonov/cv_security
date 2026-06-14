@@ -89,39 +89,33 @@ async def update_camera(
     
     update_data = camera_data.dict(exclude_unset=True)
     
-    # Сохраняем старые значения
     old_is_configured = camera.is_configured
     old_area_id = camera.area_id
     
-    # Проверяем, обновляется ли visible_zone или position
     is_zone_changed = 'visible_zone' in update_data
     is_position_changed = 'position' in update_data
     is_reset_calibration = update_data.get('reset_calibration', False)
     
-    # Если меняется зона видимости, позиция или явно запрошен сброс - сбрасываем калибровку
+    # Если переместили камеру, то сбрасываем для перекалибровки
     if is_zone_changed or is_position_changed or is_reset_calibration:
         update_data['is_configured'] = False
         update_data['points_of_homography'] = None
         update_data['frame_shape'] = None
-        # ВАЖНО: при сбросе калибровки отвязываем камеру от зоны
+        # при сбросе калибровки отвязываем камеру от зоны
         update_data['area_id'] = None
     
-    # Применяем обновления
     for field, value in update_data.items():
         setattr(camera, field, value)
     
-    # Если камера была отвязана от зоны, проверяем нужно ли удалить пустую зону
+    # Если камер в зоне не осталось, то удаляем зону
     if old_area_id is not None and camera.area_id is None:
-        # Проверяем, остались ли другие камеры в этой зоне
         remaining_cameras = db.query(Camera).filter(
             Camera.area_id == old_area_id,
             Camera.id != camera_id
         ).count()
         
         if remaining_cameras == 0:
-            # Удаляем расписание зоны
             db.query(Schedule).filter(Schedule.area_id == old_area_id).delete()
-            # Удаляем зону
             area = db.query(Area).filter(Area.id == old_area_id).first()
             if area:
                 db.delete(area)
@@ -144,7 +138,6 @@ async def update_camera(
     
     floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
     
-    # Логируем действие
     if is_zone_changed or is_position_changed:
         action_logger.log(
             db,
@@ -204,23 +197,18 @@ async def delete_camera(
     floor = db.query(Floor).filter(Floor.id == camera.floor_id).first()
     area_id = camera.area_id
     
-    # Сначала удаляем связанные детекции и уведомления
     detections = db.query(Detection).filter(Detection.camera_id == camera_id).all()
     for detection in detections:
         db.query(Notification).filter(Notification.detection_id == detection.id).delete()
         db.delete(detection)
     
-    # Удаляем камеру
     db.delete(camera)
     db.commit()
     
-    # Проверяем, остались ли камеры в зоне
     if area_id:
         remaining_cameras = db.query(Camera).filter(Camera.area_id == area_id).count()
         if remaining_cameras == 0:
-            # Удаляем расписание зоны
             db.query(Schedule).filter(Schedule.area_id == area_id).delete()
-            # Удаляем зону
             area = db.query(Area).filter(Area.id == area_id).first()
             if area:
                 db.delete(area)

@@ -42,7 +42,6 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
     onLogout();
   };
 
-  // Закрытие меню при клике вне его
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -119,7 +118,6 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
 
             <div className="h-6 w-px bg-gray-700 mx-1" />
 
-            {/* Выпадающее меню пользователя */}
             <div className="relative" ref={menuRef}>
               <button
                 onClick={handleUserMenuToggle}
@@ -139,7 +137,6 @@ const Header = ({ user, onLogout, title = "CV Security", onAreaBlink }: HeaderPr
                 </svg>
               </button>
 
-              {/* Выпадающее меню */}
               {showUserMenu && (
                 <div className="absolute right-0 mt-2 w-48 bg-gray-800 rounded-xl shadow-2xl border border-gray-700 overflow-hidden z-50 animate-fadeIn">
                   <div className="px-4 py-3 border-b border-gray-700">

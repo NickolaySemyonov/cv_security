@@ -15,9 +15,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
     if (unreadNotifications.length > 0 && onAreaBlink) {
       const latestCamera = unreadNotifications[0].camera_id;
       onAreaBlink(latestCamera);
-      // Включаем мигание кнопки при получении нового уведомления
       setIsBlinking(true);
-      // Автоматически выключаем мигание через 5 секунд
       const timer = setTimeout(() => {
         setIsBlinking(false);
       }, 5000);
@@ -48,7 +46,6 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
     removeNotification(notificationId);
   };
 
-  // Отключаем мигание при открытии панели
   const handleOpenPanel = () => {
     setIsOpen(!isOpen);
     if (!isOpen && unreadCount > 0) {

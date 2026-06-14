@@ -38,7 +38,6 @@ async def get_incidents(
             if floor:
                 floor_number = floor.number
         
-        # Собираем все полигоны всех камер в зоне
         zone_polygons = []
         if area:
             for cam in area.cameras:

@@ -59,13 +59,10 @@ class CRUDArea:
         if not area:
             return False
         
-        # 1. Сначала удаляем расписание зоны
         db.query(Schedule).filter(Schedule.area_id == area_id).delete()
         
-        # 2. Отвязываем камеры от зоны
         db.query(Camera).filter(Camera.area_id == area_id).update({Camera.area_id: None})
         
-        # 3. Удаляем зону
         db.delete(area)
         db.commit()
         return True

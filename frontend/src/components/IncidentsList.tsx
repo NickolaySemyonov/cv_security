@@ -79,7 +79,7 @@ const IncidentsList = ({ user }: IncidentsListProps) => {
   };
 
   const handleBack = () => {
-    navigate(-1); // Возврат на предыдущую страницу
+    navigate(-1); 
   };
 
   const getMiniMapWithZone = (incident: Incident): string => {

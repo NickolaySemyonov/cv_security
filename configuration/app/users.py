@@ -62,11 +62,15 @@ async def delete_operator(
     if user_to_delete.role == 'admin':
         raise HTTPException(400, "Нельзя удалить администратора")
     
+    actions_count = db.query(Action).filter(Action.user_id == user_id).count()
+    
+    if actions_count > 0:
+        raise HTTPException(
+            400, 
+            f"Нельзя удалить оператора {user_to_delete.login}, так как у него есть {actions_count} записей в логах."
+        )
+    
     try:
-        actions = db.query(Action).filter(Action.user_id == user_id).all()
-        for action in actions:
-            db.delete(action)
-        
         db.delete(user_to_delete)
         db.commit()
         
@@ -80,5 +84,4 @@ async def delete_operator(
         return {"message": "Оператор удалён", "success": True}
     except Exception as e:
         db.rollback()
-        print(f"Ошибка при удалении: {e}")
         raise HTTPException(500, f"Ошибка при удалении: {str(e)}")

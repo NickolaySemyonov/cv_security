@@ -36,13 +36,11 @@ async def create_floor(
     current_user: User = Depends(require_admin)
 ):
     if not floor_data.map or len(floor_data.map.strip()) == 0:
-        raise HTTPException(400, "Необходимо загрузить карту этажа (SVG файл)")
+        raise HTTPException(400, "Необходимо загрузить карту этажа. Ожидается SVG файл")
     
-    # Проверяем наличие тега <svg (даже если есть XML-пролог)
     if '<svg' not in floor_data.map:
         raise HTTPException(400, "Неверный формат карты. Ожидается SVG файл")
     
-    # Очищаем SVG от XML-пролога если нужно
     svg_content = floor_data.map
     svg_start = svg_content.find('<svg')
     if svg_start > 0:
@@ -107,7 +105,6 @@ async def rename_object(
     db: Session = Depends(get_db),
     current_user: User = Depends(require_admin)
 ):
-    """Переименовать все этажи объекта"""
     old_place = request.get("old_place")
     new_place = request.get("new_place")
     

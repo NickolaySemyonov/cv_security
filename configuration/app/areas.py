@@ -73,7 +73,7 @@ async def create_area(
         ).all()
         
         if len(cameras) != len(area_data.camera_ids):
-            raise HTTPException(400, "Некоторые камеры не найдены или не принадлежат этому этажу")
+            raise HTTPException(400, "Камеры не найдены")
     
     area = area_crud.create(db, area_data)
     
@@ -136,13 +136,10 @@ async def delete_area(
     
     floor = db.query(Floor).filter(Floor.id == area.floor_id).first()
     
-    # 1. Сначала удаляем расписание зоны
     db.query(Schedule).filter(Schedule.area_id == area_id).delete()
     
-    # 2. Отвязываем камеры от зоны
     db.query(Camera).filter(Camera.area_id == area_id).update({Camera.area_id: None})
     
-    # 3. Удаляем зону
     db.delete(area)
     db.commit()
     
@@ -232,16 +229,11 @@ async def update_zone_colors_by_schedule(
     current_minute = now.minute
     current_total = current_hour * 60 + current_minute
     
-    print(f"\n{'='*60}")
-    print(f"[{now.strftime('%H:%M:%S')}] ПРОВЕРКА РАСПИСАНИЯ")
-    print(f"{'='*60}")
-    
     areas = db.query(Area).all()
     updated_count = 0
     
     for area in areas:
         if area.disabled:
-            print(f"Зона #{area.id}: ⛔ РУЧНОЕ ОТКЛЮЧЕНИЕ - пропускаем")
             continue
         
         schedules = db.query(Schedule).filter(
@@ -272,7 +264,6 @@ async def update_zone_colors_by_schedule(
             old_type = area.type
             area.type = target_type
             updated_count += 1
-            print(f"Зона #{area.id}: {old_type} -> {target_type}")
             
             action_logger.log(
                 db,
@@ -283,7 +274,6 @@ async def update_zone_colors_by_schedule(
     
     if updated_count > 0:
         db.commit()
-        print(f"\n✅ ОБНОВЛЕНО {updated_count} ЗОН")
     
     return {
         "message": f"Обновлено {updated_count} зон",
@@ -303,10 +293,6 @@ async def update_all_zones_by_schedule(
     current_hour = now.hour
     current_minute = now.minute
     current_total = current_hour * 60 + current_minute
-    
-    print(f"\n{'='*60}")
-    print(f"[{now.strftime('%H:%M:%S')}] ПРИНУДИТЕЛЬНОЕ ОБНОВЛЕНИЕ ЗОН ПО РАСПИСАНИЮ")
-    print(f"{'='*60}")
     
     areas = db.query(Area).filter(Area.disabled == False).all()
     updated_count = 0
@@ -362,10 +348,7 @@ async def update_all_zones_by_schedule(
     
     if updated_count > 0:
         db.commit()
-        print(f"\n✅ ОБНОВЛЕНО {updated_count} ЗОН")
-    else:
-        print("\n✅ НЕТ ЗОН ДЛЯ ОБНОВЛЕНИЯ")
-    
+            
     return {
 
 
