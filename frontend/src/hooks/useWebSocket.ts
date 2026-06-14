@@ -12,6 +12,7 @@ export interface Notification {
   id: string;
   info: string;
   camera_id: number;
+  area_id: number
   timestamp: number;
   isRead: boolean;
 }
@@ -278,6 +279,7 @@ function connectWebSocket() {
           addNotification({
             info: data.message.info,
             camera_id: data.message.camera_id,
+            area_id: data.message.area_id,
             timestamp: data.message.timestamp
           });
         }
