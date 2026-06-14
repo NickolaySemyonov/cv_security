@@ -192,7 +192,7 @@ const HomographyCalibration = ({
 
   const getDynamicRadius = (canvasWidth: number, canvasHeight: number) => {
     const minDimension = Math.min(canvasWidth, canvasHeight);
-    return Math.max(12, Math.min(24, Math.floor(minDimension / 40)));
+    return Math.max(14, Math.min(32, Math.floor(minDimension / 25)));
   };
 
   const drawVideoPoints = () => {
