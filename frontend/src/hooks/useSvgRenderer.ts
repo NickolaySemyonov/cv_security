@@ -43,6 +43,18 @@ export const useSvgRenderer = (
   
   // Получаем данные для overlay слоя
   const getOverlayData = useCallback(() => {
+    // Если на этаже нет камер, НИКОГДА не показываем детекции
+    if (cameras.length === 0) {
+      return {
+        zones: [],
+        cameras: [],
+        detections: [], // Пустые детекции
+        isSelectingZone,
+        blinkingAreaId,
+        isAdmin
+      };
+    }
+    
     const detections = getDetectionsByFloor(currentFloorId);
     
     // Подготовка зон для отрисовки

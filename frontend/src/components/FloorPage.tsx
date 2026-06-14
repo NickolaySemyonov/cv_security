@@ -263,6 +263,7 @@ const FloorPage = ({ user, onLogout }: { user: User | null; onLogout: () => void
     setIsSelectingZone(false);
     setSelectedCameras(new Set());
     setEditingZone(null);
+    clearDetections();
   };
 
   const handlePrevFloor = () => {
