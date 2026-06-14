@@ -137,9 +137,6 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                           <p className="text-gray-400 text-sm mb-2">{notification.info}</p>
                           <div className="flex gap-3 text-xs text-gray-500">
                             <span>🕐 {formatTime(notification.timestamp)}</span>
-                            {notification.camera_id && (
-                              <span>📷 Камера #{notification.camera_id}</span>
-                            )}
                           </div>
                         </div>
                         <button
