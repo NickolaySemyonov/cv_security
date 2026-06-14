@@ -6,14 +6,12 @@ interface DetectionPoint {
   y: number;
   cameraId: number;
   timestamp: number;
-  areaId?: number;
 }
 
 export interface Notification {
   id: string;
   info: string;
   camera_id: number;
-  area_id?: number;
   timestamp: number;
   isRead: boolean;
 }
@@ -112,6 +110,7 @@ async function loadCameraInfo(cameraId: number): Promise<{ zoneBounds: { minX: n
   return null;
 }
 
+
 function scaleToZone(
   relX: number,
   relY: number,
@@ -176,7 +175,6 @@ async function processDetection(data: any) {
   const cameraId = data.camera_id;
   const points = data.translated_points;
   const timestamp = data.timestamp || Date.now() / 1000;
-  const areaId = data.area_id;
   
   if (!currentFloorCameraIds.has(cameraId)) {
     return;
@@ -189,6 +187,7 @@ async function processDetection(data: any) {
   
   const { zoneBounds, vertices } = cameraInfo;
   const newDetectionsForCamera: DetectionPoint[] = [];
+  
 
   points.forEach((point: number[]) => {
     const relX = point[0];
@@ -201,22 +200,13 @@ async function processDetection(data: any) {
         x: absolute.x,
         y: absolute.y,
         cameraId: cameraId,
-        timestamp: timestamp,
-        areaId: areaId
+        timestamp: timestamp
       });
     }
   });
   
   if (newDetectionsForCamera.length > 0) {
     allDetections.set(cameraId, newDetectionsForCamera);
-    if (areaId) {
-      addNotification({
-        info: `Обнаружено нарушение в зоне #${areaId}`,
-        camera_id: cameraId,
-        area_id: areaId,
-        timestamp: timestamp
-      });
-    }
   } else {
     allDetections.delete(cameraId);
   }
@@ -288,7 +278,6 @@ function connectWebSocket() {
           addNotification({
             info: data.message.info,
             camera_id: data.message.camera_id,
-            area_id: data.message.area_id,
             timestamp: data.message.timestamp
           });
         }

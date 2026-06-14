@@ -1,6 +1,3 @@
-import { useState, useEffect } from 'react';
-import { useWebSocket, Notification } from '../hooks/useWebSocket';
-
 interface NotificationPanelProps {
   onAreaBlink?: (areaId: number | null) => void;
 }
@@ -13,8 +10,8 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
   useEffect(() => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
     if (unreadNotifications.length > 0 && onAreaBlink) {
-      const latestAreaId = unreadNotifications[0].area_id || unreadNotifications[0].camera_id;
-      onAreaBlink(latestAreaId);
+      const latestCamera = unreadNotifications[0].camera_id;
+      onAreaBlink(latestCamera);
       setIsBlinking(true);
       const timer = setTimeout(() => {
         setIsBlinking(false);
@@ -51,10 +48,6 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
     if (!isOpen && unreadCount > 0) {
       setIsBlinking(false);
     }
-  };
-
-  const getDisplayAreaId = (notification: Notification): number => {
-    return notification.area_id || notification.camera_id;
   };
 
   return (
@@ -128,7 +121,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-red-500 text-lg">🔴</span>
                             <span className="font-semibold text-gray-300 text-sm">
-                              Зона #{getDisplayAreaId(notification)}
+                              Зона #{notification.camera_id}
                             </span>
                             {!notification.isRead && (
                               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
