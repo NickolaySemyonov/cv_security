@@ -31,7 +31,7 @@ class DetectionAnalyzer:
             self._latest_timestamps[detection.camera_id] = detection.timestamp
 
         alert = DetectionAlert(
-            info="access to the restricted area",
+            info="Нарушение доступа",
             camera_id=detection.camera_id,
             area_id=detection.area_id,
             timestamp=detection.timestamp
@@ -67,7 +67,7 @@ class DetectionAnalyzer:
                     VALUES ($1, $2, $3, $4)
                     """,
                     "red",
-                    f"Alert from camera {message.camera_id}",
+                    f"Нарушение доступа",
                     alert.info,
                     detection_id
                 )

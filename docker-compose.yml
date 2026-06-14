@@ -1,3 +1,25 @@
+# Основной шаблон для cv сервисов
+x-cv-base: &cv-base
+  build: services/cv
+  tty: true
+  init: true
+  depends_on:
+    postgres:
+      condition: service_healthy
+    rabbitmq:
+      condition: service_healthy
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: nvidia
+            count: all
+            capabilities: [gpu]
+  env_file:
+    - services/cv/.env  # базовый .env
+
+
+
 services:
   rabbitmq:
     image: rabbitmq:3.10.7-management
@@ -35,24 +57,21 @@ services:
       timeout: 5s
       retries: 5
 
-  cv:
-    build: services/cv
-    env_file:
-      - services/cv/.env
-    tty: true
-    init: true
-    depends_on:
-      postgres:
-        condition: service_healthy 
-      rabbitmq:
-        condition: service_healthy
-    deploy: # GPU резервация
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all          # Все GPU 
-              capabilities: [ gpu ]
+  
+  cv_cameras_1_2:
+    <<: *cv-base
+    environment:
+      - CAMERA_IDS=[1,2]
+
+  cv_cameras_3_4:
+    <<: *cv-base
+    environment:
+      - CAMERA_IDS=[3,4]
+
+  cv_cameras_5_6:
+    <<: *cv-base
+    environment:
+      - CAMERA_IDS=[5,6]
 
   analytics:
     build: services/analytics

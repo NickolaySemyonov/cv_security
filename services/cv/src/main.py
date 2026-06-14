@@ -32,7 +32,7 @@ def main():
         pipeline.add_worker(linked_name, CaptureWorker, out_queue_name=linked_name, camera_id=camera_id)
 
     # define processed queue & process/message workers using this queue
-    pipeline.add_queue("processed", maxsize=50)
+    pipeline.add_queue("processed", maxsize=10)
     pipeline.add_worker(
         "process_worker",
         ProcessWorker,
