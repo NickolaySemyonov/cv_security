@@ -6,12 +6,14 @@ interface DetectionPoint {
   y: number;
   cameraId: number;
   timestamp: number;
+  areaId?: number;
 }
 
 export interface Notification {
   id: string;
   info: string;
   camera_id: number;
+  area_id?: number;
   timestamp: number;
   isRead: boolean;
 }
@@ -35,7 +37,6 @@ let isConnecting = false;
 let isConnected = false;
 let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
-
 let allDetections: Map<number, DetectionPoint[]> = new Map();
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765';
@@ -68,13 +69,9 @@ function isPointInZone(x: number, y: number, vertices: number[][]): boolean {
   
   let inside = false;
   for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-    const xi = vertices[i][0];
-    const yi = vertices[i][1];
-    const xj = vertices[j][0];
-    const yj = vertices[j][1];
-    
-    const intersect = ((yi > y) != (yj > y)) &&
-      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    const xi = vertices[i][0], yi = vertices[i][1];
+    const xj = vertices[j][0], yj = vertices[j][1];
+    const intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
     if (intersect) inside = !inside;
   }
   return inside;
@@ -109,7 +106,6 @@ async function loadCameraInfo(cameraId: number): Promise<{ zoneBounds: { minX: n
   cameraInfoCache.set(cameraId, null);
   return null;
 }
-
 
 function scaleToZone(
   relX: number,
@@ -175,6 +171,7 @@ async function processDetection(data: any) {
   const cameraId = data.camera_id;
   const points = data.translated_points;
   const timestamp = data.timestamp || Date.now() / 1000;
+  const areaId = data.area_id;
   
   if (!currentFloorCameraIds.has(cameraId)) {
     return;
@@ -188,11 +185,9 @@ async function processDetection(data: any) {
   const { zoneBounds, vertices } = cameraInfo;
   const newDetectionsForCamera: DetectionPoint[] = [];
   
-
   points.forEach((point: number[]) => {
     const relX = point[0];
     const relY = point[1];
-    
     const absolute = scaleToZone(relX, relY, zoneBounds);
     
     if (isPointInZone(absolute.x, absolute.y, vertices)) {
@@ -200,13 +195,22 @@ async function processDetection(data: any) {
         x: absolute.x,
         y: absolute.y,
         cameraId: cameraId,
-        timestamp: timestamp
+        timestamp: timestamp,
+        areaId: areaId
       });
     }
   });
   
   if (newDetectionsForCamera.length > 0) {
     allDetections.set(cameraId, newDetectionsForCamera);
+    if (areaId) {
+      addNotification({
+        info: `Обнаружено движение в зоне #${areaId}`,
+        camera_id: cameraId,
+        area_id: areaId,
+        timestamp: timestamp
+      });
+    }
   } else {
     allDetections.delete(cameraId);
   }
@@ -278,6 +282,7 @@ function connectWebSocket() {
           addNotification({
             info: data.message.info,
             camera_id: data.message.camera_id,
+            area_id: data.message.area_id,
             timestamp: data.message.timestamp
           });
         }
