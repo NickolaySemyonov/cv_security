@@ -75,7 +75,6 @@ const ZonesSidebar: React.FC<ZonesSidebarProps> = ({
     }
   };
 
-  // Убираем confirm из этого компонента - передаем вызов наверх
   const handleDelete = (e: React.MouseEvent, zone: Zone) => {
     e.stopPropagation();
     if (onDeleteZone && isAdmin) {

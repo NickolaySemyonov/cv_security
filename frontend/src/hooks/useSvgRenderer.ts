@@ -45,7 +45,7 @@ export const useSvgRenderer = (
       return {
         zones: [],
         cameras: [],
-        detections: [], // Пустые детекции
+        detections: [], 
         isSelectingZone,
         blinkingAreaId,
         isAdmin

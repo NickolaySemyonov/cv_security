@@ -1,4 +1,3 @@
-// frontend/src/components/ObjectForm.tsx
 import { FormEvent, ReactNode } from 'react';
 
 interface ObjectFormProps {
