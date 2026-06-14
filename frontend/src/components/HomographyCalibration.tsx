@@ -45,10 +45,6 @@ const HomographyCalibration = ({
   const [frameHeight, setFrameHeight] = useState<number>(480);
   const [manualStreamUrl, setManualStreamUrl] = useState<string>(streamUrl);
 
-  const POINT_RADIUS = 24;
-  const POINT_FONT_SIZE = 28;
-  const POINT_STROKE_WIDTH = 4;
-
   useEffect(() => {
     return () => {
       if (hlsRef.current) {
@@ -194,6 +190,16 @@ const HomographyCalibration = ({
     return null;
   };
 
+  const getDynamicRadiusForVideo = (canvasWidth: number, canvasHeight: number) => {
+    const minDimension = Math.min(canvasWidth, canvasHeight);
+    return Math.max(12, Math.min(20, Math.floor(minDimension / 35)));
+  };
+
+  const getDynamicRadiusForMap = (canvasWidth: number, canvasHeight: number) => {
+    const minDimension = Math.min(canvasWidth, canvasHeight);
+    return Math.max(24, Math.min(40, Math.floor(minDimension / 20)));
+  };
+
   const drawVideoPoints = () => {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -208,21 +214,23 @@ const HomographyCalibration = ({
     
     const scaleX = canvas.width / video.videoWidth;
     const scaleY = canvas.height / video.videoHeight;
+    const radius = getDynamicRadiusForVideo(canvas.width, canvas.height);
+    const fontSize = radius + 4;
     
     videoPoints.forEach((point, i) => {
       const x = point.x * scaleX;
       const y = point.y * scaleY;
       
       ctx.beginPath();
-      ctx.arc(x, y, POINT_RADIUS, 0, 2 * Math.PI);
+      ctx.arc(x, y, radius, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = POINT_STROKE_WIDTH;
+      ctx.lineWidth = 2;
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${POINT_FONT_SIZE}px Arial`;
+      ctx.font = `bold ${fontSize}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), x, y);
@@ -255,17 +263,20 @@ const HomographyCalibration = ({
       ctx.stroke();
     }
     
+    const radius = getDynamicRadiusForMap(canvas.width, canvas.height);
+    const fontSize = radius + 4;
+    
     mapPoints.forEach((point, i) => {
       ctx.beginPath();
-      ctx.arc(point.x, point.y, POINT_RADIUS, 0, 2 * Math.PI);
+      ctx.arc(point.x, point.y, radius, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = POINT_STROKE_WIDTH;
+      ctx.lineWidth = 3;
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${POINT_FONT_SIZE}px Arial`;
+      ctx.font = `bold ${fontSize}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), point.x, point.y);
