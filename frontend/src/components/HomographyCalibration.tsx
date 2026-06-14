@@ -88,10 +88,7 @@ const HomographyCalibration = ({
       
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         setVideoLoaded(true);
-        video.play().catch(e => {
-          console.error('Автовоспроизведение заблокировано:', e);
-          setError('Нажмите play для начала воспроизведения');
-        });
+        video.play().catch(e => console.error('Автовоспроизведение заблокировано:', e));
       });
       
       hls.on(Hls.Events.ERROR, (event, data) => {
@@ -114,9 +111,7 @@ const HomographyCalibration = ({
       video.src = manualStreamUrl;
       video.addEventListener('loadedmetadata', () => {
         setVideoLoaded(true);
-        video.play().catch(e => {
-          console.error('Автовоспроизведение заблокировано:', e);
-        });
+        video.play().catch(e => console.error('Автовоспроизведение заблокировано:', e));
       });
       video.addEventListener('error', () => {
         setError('Не удалось загрузить видеопоток');
@@ -395,15 +390,15 @@ const HomographyCalibration = ({
           <div className="mt-4 p-3 bg-blue-50 rounded-lg text-sm text-blue-800">
             <div className="font-semibold mb-2">📖 Инструкция по калибровке:</div>
             <ol className="list-decimal list-inside space-y-1">
-              <li>Введите URL HLS видеопотока (например, http://localhost:8888/camera_X/index.m3u8)</li>
-              <li>Укажите разрешение камеры (ширина и высота кадра)</li>
+              <li>Введите URL HLS видеопотока</li>
+              <li>Укажите разрешение камеры</li>
               <li>Нажмите "Далее"</li>
               <li>На видео отметьте 4 точки (углы зоны наблюдения) в порядке: левый верхний → правый верхний → правый нижний → левый нижний</li>
               <li>На схеме справа отметьте те же 4 точки в том же порядке</li>
               <li>Нажмите "Сохранить калибровку"</li>
             </ol>
             <div className="mt-2 text-xs text-blue-600">
-              💡 Совет: Выбирайте неподвижные объекты на видео (углы стен, двери, колонны) для точной калибровки
+              💡 Выбирайте неподвижные объекты на видео (углы стен, двери, колонны)
             </div>
           </div>
           
@@ -414,7 +409,7 @@ const HomographyCalibration = ({
               Отмена
             </button>
             <button onClick={handleNextFromSettings} className="px-4 py-2 bg-blue-500 text-white rounded-lg">
-              Далее 
+              Далее →
             </button>
           </div>
         </div>
@@ -496,7 +491,7 @@ const HomographyCalibration = ({
         
         <div className="flex justify-between items-center mt-6 pt-4 border-t">
           <button onClick={resetAllPoints} className="px-4 py-2 bg-red-500 text-white rounded-lg">
-             Сбросить всё
+            🗑 Сбросить всё
           </button>
           <button 
             onClick={handleSave} 
@@ -516,7 +511,7 @@ const HomographyCalibration = ({
           <br />
           <strong>Шаг 2:</strong> Дождитесь загрузки видеопотока
           <br />
-          <strong>Шаг 3:</strong> Отметьте 4 точки на видео и 4 точки на схеме справа в одинаковом порядке (углы зоны наблюдения)
+          <strong>Шаг 3:</strong> Отметьте 4 точки на видео и 4 точки на схеме справа в одинаковом порядке
         </div>
       </div>
     </div>
