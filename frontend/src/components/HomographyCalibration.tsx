@@ -45,6 +45,10 @@ const HomographyCalibration = ({
   const [frameHeight, setFrameHeight] = useState<number>(480);
   const [manualStreamUrl, setManualStreamUrl] = useState<string>(streamUrl);
 
+  const POINT_RADIUS = 16;
+  const POINT_FONT_SIZE = 20;
+  const POINT_STROKE_WIDTH = 3;
+
   useEffect(() => {
     return () => {
       if (hlsRef.current) {
@@ -205,23 +209,20 @@ const HomographyCalibration = ({
     const scaleX = canvas.width / video.videoWidth;
     const scaleY = canvas.height / video.videoHeight;
     
-    const videoPointRadius = Math.min(20, Math.max(12, Math.floor(Math.min(canvas.width, canvas.height) / 40)));
-    const videoFontSize = Math.min(20, Math.max(14, Math.floor(videoPointRadius * 1.2)));
-    
     videoPoints.forEach((point, i) => {
       const x = point.x * scaleX;
       const y = point.y * scaleY;
       
       ctx.beginPath();
-      ctx.arc(x, y, videoPointRadius, 0, 2 * Math.PI);
+      ctx.arc(x, y, POINT_RADIUS, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = POINT_STROKE_WIDTH;
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${videoFontSize}px Arial`;
+      ctx.font = `bold ${POINT_FONT_SIZE}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), x, y);
@@ -254,20 +255,17 @@ const HomographyCalibration = ({
       ctx.stroke();
     }
     
-    const pointRadius = Math.min(24, Math.max(16, Math.floor(Math.min(frameWidth, frameHeight) / 30)));
-    const fontSize = Math.min(24, Math.max(18, Math.floor(pointRadius * 1.2)));
-    
     mapPoints.forEach((point, i) => {
       ctx.beginPath();
-      ctx.arc(point.x, point.y, pointRadius, 0, 2 * Math.PI);
+      ctx.arc(point.x, point.y, POINT_RADIUS, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
-      ctx.lineWidth = 3;
+      ctx.lineWidth = POINT_STROKE_WIDTH;
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = `bold ${fontSize}px Arial`;
+      ctx.font = `bold ${POINT_FONT_SIZE}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), point.x, point.y);
