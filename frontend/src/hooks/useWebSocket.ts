@@ -37,6 +37,7 @@ let isConnecting = false;
 let isConnected = false;
 let pendingDetections: DetectionPoint[] | null = null;
 let renderTimeout: NodeJS.Timeout | null = null;
+
 let allDetections: Map<number, DetectionPoint[]> = new Map();
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8765';
@@ -69,9 +70,13 @@ function isPointInZone(x: number, y: number, vertices: number[][]): boolean {
   
   let inside = false;
   for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
-    const xi = vertices[i][0], yi = vertices[i][1];
-    const xj = vertices[j][0], yj = vertices[j][1];
-    const intersect = ((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+    const xi = vertices[i][0];
+    const yi = vertices[i][1];
+    const xj = vertices[j][0];
+    const yj = vertices[j][1];
+    
+    const intersect = ((yi > y) != (yj > y)) &&
+      (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
     if (intersect) inside = !inside;
   }
   return inside;
@@ -184,10 +189,11 @@ async function processDetection(data: any) {
   
   const { zoneBounds, vertices } = cameraInfo;
   const newDetectionsForCamera: DetectionPoint[] = [];
-  
+
   points.forEach((point: number[]) => {
     const relX = point[0];
     const relY = point[1];
+    
     const absolute = scaleToZone(relX, relY, zoneBounds);
     
     if (isPointInZone(absolute.x, absolute.y, vertices)) {
@@ -205,7 +211,7 @@ async function processDetection(data: any) {
     allDetections.set(cameraId, newDetectionsForCamera);
     if (areaId) {
       addNotification({
-        info: `Обнаружено движение в зоне #${areaId}`,
+        info: `Обнаружено нарушение в зоне #${areaId}`,
         camera_id: cameraId,
         area_id: areaId,
         timestamp: timestamp
