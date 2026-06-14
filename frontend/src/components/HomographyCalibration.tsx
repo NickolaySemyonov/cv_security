@@ -205,12 +205,15 @@ const HomographyCalibration = ({
     const scaleX = canvas.width / video.videoWidth;
     const scaleY = canvas.height / video.videoHeight;
     
+    const videoPointRadius = Math.min(20, Math.max(12, Math.floor(Math.min(canvas.width, canvas.height) / 40)));
+    const videoFontSize = Math.min(20, Math.max(14, Math.floor(videoPointRadius * 1.2)));
+    
     videoPoints.forEach((point, i) => {
       const x = point.x * scaleX;
       const y = point.y * scaleY;
       
       ctx.beginPath();
-      ctx.arc(x, y, 16, 0, 2 * Math.PI);
+      ctx.arc(x, y, videoPointRadius, 0, 2 * Math.PI);
       ctx.fillStyle = '#4CAF50';
       ctx.fill();
       ctx.strokeStyle = '#fff';
@@ -218,7 +221,7 @@ const HomographyCalibration = ({
       ctx.stroke();
       
       ctx.fillStyle = '#fff';
-      ctx.font = 'bold 20px Arial';
+      ctx.font = `bold ${videoFontSize}px Arial`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText((i + 1).toString(), x, y);
