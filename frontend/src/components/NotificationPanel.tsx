@@ -121,7 +121,7 @@ const NotificationPanel = ({ onAreaBlink }: NotificationPanelProps) => {
                           <div className="flex items-center gap-2 mb-1">
                             <span className="text-red-500 text-lg">🔴</span>
                             <span className="font-semibold text-gray-300 text-sm">
-                              Зона #{notification.camera_id}
+                              Камера #{notification.camera_id}
                             </span>
                             {!notification.isRead && (
                               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
