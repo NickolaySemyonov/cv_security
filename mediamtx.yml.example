@@ -1,10 +1,9 @@
 rtspTransports: [tcp]
 
 rtspAddress: :8554
-webrtcAddress: :8889
-webrtcAdditionalHosts: [localhost]
 hlsAddress: :8888
 
+# for real rtsp streams
 paths:
   camera_1:
     source: rtsp://USER:PASSWORD@CAMERA_IP:PORT/live
@@ -18,3 +17,7 @@ paths:
   camera_4:
     source: rtsp://USER:PASSWORD@CAMERA_IP:PORT/live
     rtspTransport: tcp
+
+# for demo file streams (mapped in commands)
+# paths:
+#   all:

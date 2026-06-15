@@ -110,5 +110,51 @@ services:
       - ./mediamtx.yml:/mediamtx.yml
     restart: unless-stopped
 
+
+  configuration:
+    build: services/configuration
+    env_file:
+      - services/configuration/.env
+    ports:
+      - "8000:8000"
+    tty: true
+    init: true
+    depends_on:
+      postgres:
+        condition: service_healthy 
+    
+
+  frontend:
+    build: services/frontend
+    env_file:
+      - services/frontend/.env
+    ports:
+      - "5173:5173"
+    tty: true
+    init: true
+    
+  # file streamer for demo
+  ffmpeg-streamer:
+    image: jrottenberg/ffmpeg:latest
+    container_name: ffmpeg-streamer
+    volumes:
+      - ./videos:/videos
+    restart: unless-stopped
+    entrypoint: /bin/sh
+    command: >
+     -c "
+     ffmpeg -re -stream_loop -1 -fflags +genpts -avoid_negative_ts make_zero -i /videos/camera1.mp4 \
+     -c:v libx264 -preset veryfast -tune zerolatency \
+     -x264-params 'bframes=0:ref=1:keyint=1:scenecut=0' \
+     -r 20 -b:v 3000k -maxrate 2500k -bufsize 5000k -g 20 -keyint_min 20 \
+     -an \
+     -f rtsp rtsp://mediamtx:8554/camera_1 &
+
+     # same command for every mock camera stream 
+
+     wait
+     "
+    depends_on:
+      - mediamtx
 volumes:
   postgres_data:

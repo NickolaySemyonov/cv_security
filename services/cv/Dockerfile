@@ -6,8 +6,6 @@ COPY requirements.txt .
 RUN pip install -r requirements.txt
 
 COPY src/ ./src/
-COPY yolo11n.pt ./src/
-COPY test-media/ ./test-media/
 
 ENV PYTHONUNBUFFERED=TRUE
 
